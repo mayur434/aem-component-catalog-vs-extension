@@ -1,0 +1,135 @@
+{
+  "name": "aem-component-library-generator",
+  "displayName": "AEM Component Library Generator",
+  "description": "Auto-generates a fully functional, brand-aligned Component Library site for Adobe Experience Manager projects — servlet, clientlib, page component, and OSGi configs.",
+  "version": "1.3.0",
+  "publisher": "pidilite",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "AEM",
+    "Adobe Experience Manager",
+    "Component Library",
+    "Sling",
+    "OSGi"
+  ],
+  "activationEvents": [
+    "workspaceContains:pom.xml",
+    "workspaceContains:*/pom.xml",
+    "onCommand:aemComponentLibrary.init",
+    "onCommand:aemComponentLibrary.generate",
+    "onCommand:aemComponentLibrary.update",
+    "onCommand:aemComponentLibrary.preview",
+    "onCommand:aemComponentLibrary.scan",
+    "onCommand:aemComponentLibrary.openDashboard",
+    "onView:aemCL.actions",
+    "onView:aemCL.projects",
+    "onView:aemCL.components"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aemComponentLibrary",
+          "title": "AEM Component Library",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aemComponentLibrary": [
+        {
+          "id": "aemCL.actions",
+          "name": "Actions"
+        },
+        {
+          "id": "aemCL.projects",
+          "name": "Projects"
+        },
+        {
+          "id": "aemCL.components",
+          "name": "Components"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "aemCL.actions",
+        "contents": "Get started by initializing a config file.\n[Initialize Config](command:aemComponentLibrary.init)\n[Generate Library](command:aemComponentLibrary.generate)\n[Update Library](command:aemComponentLibrary.update)\n[Preview](command:aemComponentLibrary.preview)\n[Scan Components](command:aemComponentLibrary.scan)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "aemComponentLibrary.init",
+        "title": "AEM Component Library: Init",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "aemComponentLibrary.generate",
+        "title": "AEM Component Library: Generate",
+        "icon": "$(play)"
+      },
+      {
+        "command": "aemComponentLibrary.update",
+        "title": "AEM Component Library: Update",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aemComponentLibrary.preview",
+        "title": "AEM Component Library: Preview",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "aemComponentLibrary.scan",
+        "title": "AEM Component Library: Scan Components",
+        "icon": "$(search)"
+      },
+      {
+        "command": "aemComponentLibrary.refreshSidebar",
+        "title": "AEM Component Library: Refresh Sidebar",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aemComponentLibrary.openDashboard",
+        "title": "AEM Component Library: Open Dashboard",
+        "icon": "$(dashboard)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "aemComponentLibrary.refreshSidebar",
+          "when": "view =~ /^aemCL\\./",
+          "group": "navigation"
+        }
+      ]
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": ".component-library.json",
+        "url": "./src/schemas/component-library.schema.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8",
+    "fast-xml-parser": "^4.3.0"
+  }
+}

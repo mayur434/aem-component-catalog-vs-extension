@@ -1,0 +1,5 @@
+<sly data-sly-use.clientLib="${'/libs/granite/sightly/templates/clientlib.html'}"/>
+<sly data-sly-call="${clientLib.css @ categories='{{clientlibCategory}}'}"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family={{replace brand.bodyFont " " "+"}}&display=swap');
+</style>

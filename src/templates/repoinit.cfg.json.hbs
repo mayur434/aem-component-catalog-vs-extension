@@ -1,0 +1,13 @@
+{
+    "scripts": [
+        "create service user {{serviceUserName}}",
+        "set ACL for {{serviceUserName}}\n    allow jcr:read on {{componentRoot}}\n    allow jcr:read on /apps/{{appId}}/clientlibs\nend",
+        "create path (nt:unstructured) /conf/{{appId}}/settings/wcm/templates",
+        "create path (cq:Template) /conf/{{appId}}/settings/wcm/templates/component-library-page",
+        "create path (cq:PageContent) /conf/{{appId}}/settings/wcm/templates/component-library-page/jcr:content",
+        "set properties on /conf/{{appId}}/settings/wcm/templates/component-library-page/jcr:content\n    set jcr:title{String} to \"Component Library Page\"\n    set jcr:description{String} to \"Template for the Component Library page\"\n    set status{String} to enabled\nend",
+        "create path (cq:Page) {{contentPath}}",
+        "create path (cq:PageContent) {{contentPath}}/jcr:content",
+        "set properties on {{contentPath}}/jcr:content\n    set sling:resourceType{String} to {{pageResourceType}}\n    set jcr:title{String} to \"{{pageTitle}}\"\n    set cq:template{String} to /conf/{{appId}}/settings/wcm/templates/component-library-page\n    set cq:designPath{String} to /libs/settings/wcm/designs/default\nend"
+    ]
+}

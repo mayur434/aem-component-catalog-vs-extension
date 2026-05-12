@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AEM Component Library Configuration",
+  "description": "Configuration for the AEM Component Library Generator VS Code extension.",
+  "type": "object",
+  "required": ["appId"],
+  "properties": {
+    "appId": {
+      "type": "string",
+      "description": "The AEM application ID (e.g. 'mysite'). Used as the root folder name under /apps/.",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "brand": {
+      "type": "object",
+      "description": "Brand colours and typography tokens.",
+      "properties": {
+        "primary": { "type": "string", "description": "Primary brand colour (hex).", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "primaryLight": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "primaryDark": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "primaryDeeper": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "accent": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "accentHover": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "gold": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "goldHover": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "sky": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "headingFont": { "type": "string", "description": "Heading font family name." },
+        "bodyFont": { "type": "string", "description": "Body font family name (loaded from Google Fonts)." }
+      }
+    },
+    "hero": {
+      "type": "object",
+      "description": "Hero section configuration.",
+      "properties": {
+        "badge": { "type": "string", "description": "Text shown in the hero badge." },
+        "title": { "type": "string", "description": "Full hero title." },
+        "titleHighlight": { "type": "string", "description": "Highlighted (gold gradient) word in the title." },
+        "titleSuffix": { "type": "string", "description": "Text after the highlighted word." },
+        "description": { "type": "string", "description": "Hero paragraph text." },
+        "stats": {
+          "type": "array",
+          "description": "Additional stat cards in the hero (Components and Groups are auto-populated).",
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "properties": {
+              "value": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "description": "Component scanning configuration.",
+      "properties": {
+        "root": { "type": "string", "description": "JCR path to the components root (e.g. '/apps/mysite/components')." },
+        "groups": {
+          "type": "object",
+          "properties": {
+            "exclude": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Component groups to exclude (e.g. '.hidden')."
+            }
+          }
+        },
+        "thumbnails": {
+          "type": "object",
+          "properties": {
+            "fileNames": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "File names to look for as component thumbnail (e.g. ['thumbnail.png', 'thumbnail.svg'])."
+            }
+          }
+        },
+        "layouts": {
+          "type": "object",
+          "properties": {
+            "folderName": { "type": "string", "description": "Folder name containing layout screenshots (default: 'layouts')." },
+            "exclude": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Glob patterns of files in layouts/ to exclude (e.g. ['thumbnail*'])."
+            }
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Feature flags for the generated component library.",
+      "properties": {
+        "search": { "type": "boolean", "description": "Enable search bar.", "default": true },
+        "groupFilter": { "type": "boolean", "description": "Enable group filter pills.", "default": true },
+        "lightbox": { "type": "boolean", "description": "Enable image lightbox.", "default": true },
+        "codeSnippets": { "type": "boolean", "description": "Enable HTL/XML code snippets.", "default": true },
+        "readme": { "type": "boolean", "description": "Enable README rendering.", "default": true },
+        "gallery": { "type": "boolean", "description": "Enable layout gallery.", "default": true }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Output path configuration.",
+      "properties": {
+        "servletPackage": { "type": "string", "description": "Java package for the servlet class." },
+        "pageResourceType": { "type": "string", "description": "Sling resource type for the component library page." },
+        "clientlibCategory": { "type": "string", "description": "Clientlib category name." },
+        "contentPath": { "type": "string", "description": "Content page path in the JCR (e.g. '/content/mysite/component-library')." }
+      }
+    },
+    "serviceUser": {
+      "type": "object",
+      "description": "Service user configuration for the servlet.",
+      "properties": {
+        "systemUser": { "type": "string", "description": "System user name." },
+        "subServiceName": { "type": "string", "description": "Sub-service name for the ResourceResolverFactory mapping." },
+        "bundleSymbolicName": { "type": "string", "description": "OSGi bundle symbolic name (e.g. 'mysite.core')." }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+.vscode
+!node_modules
+node_modules/.package-lock.json
+node_modules/@types
+node_modules/typescript
+src/**/*.ts
+tsconfig.json
+*.map
+out/**/*.d.ts
+out/**/*.d.ts.map

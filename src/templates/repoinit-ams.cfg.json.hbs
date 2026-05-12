@@ -1,0 +1,6 @@
+{
+    "scripts": [
+        "create service user {{serviceUserName}}",
+        "set ACL for {{serviceUserName}}\n    allow jcr:read on {{componentRoot}}\n    allow jcr:read on /apps/{{appId}}/clientlibs\nend"
+    ]
+}
