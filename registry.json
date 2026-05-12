@@ -1,0 +1,16 @@
+{
+  "extensions": [
+    {
+      "id": "pidilite.aem-component-library-generator",
+      "name": "aem-component-library-generator",
+      "displayName": "AEM Component Library Generator",
+      "description": "Auto-generates a fully functional, brand-aligned Component Library site for Adobe Experience Manager projects — servlet, clientlib, page component, and OSGi configs.",
+      "version": "1.3.0",
+      "publisher": "pidilite",
+      "vsixPath": "releases/aem-component-library-generator-1.3.0.vsix",
+      "categories": ["AEM", "Development Tools"],
+      "lastUpdated": "2026-05-12T00:00:00Z"
+    }
+  ],
+  "lastUpdated": "2026-05-12T00:00:00Z"
+}
