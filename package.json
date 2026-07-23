@@ -1,14 +1,15 @@
 {
   "name": "aem-component-library-generator",
-  "displayName": "AEM Component Library Generator",
-  "description": "Auto-generates a fully functional, brand-aligned Component Library site for Adobe Experience Manager projects — servlet, clientlib, page component, and OSGi configs.",
-  "version": "1.3.0",
+  "displayName": "AEM Component Catalog Enterprise",
+  "description": "Enterprise component catalog, governance, and Cloud readiness tooling for AEM as a Cloud Service.",
+  "version": "2.0.0",
   "publisher": "pidilite",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.100.0"
   },
   "categories": [
+    "Linters",
     "Other"
   ],
   "keywords": [
@@ -16,7 +17,10 @@
     "Adobe Experience Manager",
     "Component Library",
     "Sling",
-    "OSGi"
+    "OSGi",
+    "AEMaaCS",
+    "Cloud Manager",
+    "Component Governance"
   ],
   "activationEvents": [
     "workspaceContains:pom.xml",
@@ -26,18 +30,36 @@
     "onCommand:aemComponentLibrary.update",
     "onCommand:aemComponentLibrary.preview",
     "onCommand:aemComponentLibrary.scan",
+    "onCommand:aemComponentLibrary.doctor",
+    "onCommand:aemComponentLibrary.rollback",
+    "onCommand:aemComponentLibrary.exportSupportBundle",
     "onCommand:aemComponentLibrary.openDashboard",
     "onView:aemCL.actions",
     "onView:aemCL.projects",
     "onView:aemCL.components"
   ],
   "main": "./out/extension.js",
+  "bin": {
+    "aem-catalog": "./out/cli.js"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "restrictedConfigurations": [
+        "aemComponentLibrary.policyFile"
+      ]
+    },
+    "virtualWorkspaces": false
+  },
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
           "id": "aemComponentLibrary",
-          "title": "AEM Component Library",
+          "title": "AEM Component Catalog",
           "icon": "resources/icon.svg"
         }
       ]
@@ -61,44 +83,59 @@
     "viewsWelcome": [
       {
         "view": "aemCL.actions",
-        "contents": "Get started by initializing a config file.\n[Initialize Config](command:aemComponentLibrary.init)\n[Generate Library](command:aemComponentLibrary.generate)\n[Update Library](command:aemComponentLibrary.update)\n[Preview](command:aemComponentLibrary.preview)\n[Scan Components](command:aemComponentLibrary.scan)"
+        "contents": "Enterprise catalog tools for AEM as a Cloud Service.\n[Open Dashboard](command:aemComponentLibrary.openDashboard)\n[Initialize Config](command:aemComponentLibrary.init)\n[Run Cloud Doctor](command:aemComponentLibrary.doctor)\n[Preview Generation](command:aemComponentLibrary.preview)\n[Generate Catalog](command:aemComponentLibrary.generate)"
       }
     ],
     "commands": [
       {
         "command": "aemComponentLibrary.init",
-        "title": "AEM Component Library: Init",
+        "title": "AEM Component Catalog: Init",
         "icon": "$(gear)"
       },
       {
         "command": "aemComponentLibrary.generate",
-        "title": "AEM Component Library: Generate",
+        "title": "AEM Component Catalog: Generate",
         "icon": "$(play)"
       },
       {
         "command": "aemComponentLibrary.update",
-        "title": "AEM Component Library: Update",
+        "title": "AEM Component Catalog: Update",
         "icon": "$(refresh)"
       },
       {
         "command": "aemComponentLibrary.preview",
-        "title": "AEM Component Library: Preview",
+        "title": "AEM Component Catalog: Preview",
         "icon": "$(eye)"
       },
       {
         "command": "aemComponentLibrary.scan",
-        "title": "AEM Component Library: Scan Components",
+        "title": "AEM Component Catalog: Scan Components",
         "icon": "$(search)"
       },
       {
         "command": "aemComponentLibrary.refreshSidebar",
-        "title": "AEM Component Library: Refresh Sidebar",
+        "title": "AEM Component Catalog: Refresh Sidebar",
         "icon": "$(refresh)"
       },
       {
         "command": "aemComponentLibrary.openDashboard",
-        "title": "AEM Component Library: Open Dashboard",
+        "title": "AEM Component Catalog: Open Dashboard",
         "icon": "$(dashboard)"
+      },
+      {
+        "command": "aemComponentLibrary.doctor",
+        "title": "AEM Component Catalog: Run AEM Cloud Doctor",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "aemComponentLibrary.rollback",
+        "title": "AEM Component Catalog: Roll Back Last Generation",
+        "icon": "$(history)"
+      },
+      {
+        "command": "aemComponentLibrary.exportSupportBundle",
+        "title": "AEM Component Catalog: Export Redacted Support Bundle",
+        "icon": "$(export)"
       }
     ],
     "menus": {
@@ -112,24 +149,70 @@
     },
     "jsonValidation": [
       {
-        "fileMatch": ".component-library.json",
+        "fileMatch": "**/.component-library.json",
         "url": "./src/schemas/component-library.schema.json"
+      },
+      {
+        "fileMatch": "**/.aem-catalog-policy.json",
+        "url": "./src/schemas/aem-catalog-policy.schema.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "AEM Component Catalog",
+      "properties": {
+        "aemComponentLibrary.policyFile": {
+          "type": "string",
+          "default": ".aem-catalog-policy.json",
+          "description": "Workspace-relative enterprise policy file used by AEM Cloud Doctor."
+        },
+        "aemComponentLibrary.showInformationFindings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show informational findings in Cloud Doctor reports."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "compile": "npm run check && node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "check": "tsc -p ./ --noEmit",
+    "lint": "eslint src test --max-warnings 0",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:integration": "npm run compile && node test/integration/run.mjs",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "quality": "npm run check && npm run lint && npm test",
+    "package:vsix": "vsce package",
+    "sbom": "npm sbom --sbom-format cyclonedx > sbom.cdx.json"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0"
+    "@eslint/js": "^9.32.0",
+    "@types/node": "^22.16.5",
+    "@types/vscode": "^1.100.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^9.32.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
-    "handlebars": "^4.7.8",
-    "fast-xml-parser": "^4.3.0"
-  }
+    "fast-xml-parser": "^5.10.1",
+    "handlebars": "^4.7.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pidilite/aem-component-catalog-vs-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pidilite/aem-component-catalog-vs-extension/issues"
+  },
+  "homepage": "https://github.com/pidilite/aem-component-catalog-vs-extension#readme"
 }

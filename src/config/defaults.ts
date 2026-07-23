@@ -2,10 +2,11 @@
  * Sensible defaults for .component-library.json
  * Any field not specified by the user will use these values.
  */
-import { ComponentLibraryConfig } from './schema';
+import type { ComponentLibraryConfig } from './schema';
 
 export function getDefaults(appId: string): ComponentLibraryConfig {
   return {
+    schemaVersion: 2,
     appId,
     brand: {
       primary: '#03438E',
@@ -42,12 +43,15 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       codeSnippets: true,
       readme: true,
       darkMode: false,
+      qualityScore: true,
+      dependencyGraph: true,
+      accessibility: true,
     },
     output: {
       servletPackage: `com.${appId.replace(/-/g, '.')}.core.servlets`,
       clientlibCategory: `${appId}.componentlibrary`,
       contentPath: `/content/${appId}/component-library`,
-      pageTitle: 'Component Library',
+      pageTitle: 'Component Catalog',
       pageResourceType: `${appId}/components/page/componentlibrary`,
     },
     serviceUser: {
@@ -58,12 +62,22 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
     hero: {
       badge: appId,
       titlePrefix: appId,
-      titleHighlight: 'Component Library',
+      titleHighlight: 'Component Catalog',
       description: `The unified component ecosystem — auto-discovered from the ${appId} codebase.`,
-      stats: [
-        { label: 'Version', value: 'v1.0' },
-      ],
-      footerText: `${appId} — Component Library · Auto-Discovered Design System`,
+      stats: [{ label: 'Version', value: 'v1.0' }],
+      footerText: `${appId} — Enterprise Component Catalog · Auto-Discovered Design System`,
+    },
+    catalog: {
+      deploymentTarget: 'author',
+      cacheSeconds: 60,
+      pageSize: 250,
+    },
+    governance: {
+      policyFile: '.aem-catalog-policy.json',
+      ownerProperty: 'catalogOwner',
+      statusProperty: 'catalogStatus',
+      versionProperty: 'catalogVersion',
+      tagsProperty: 'catalogTags',
     },
   };
 }

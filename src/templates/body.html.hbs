@@ -1,5 +1,5 @@
 <!--/*
-    {{hero.title}} — Component Library (body.html)
+    {{hero.titlePrefix}} — Component Catalog (body.html)
     Fully dynamic shell — JS fetches servlet JSON and renders listing or detail via suffix.
     Servlet endpoint: <pagePath>.components.json
     Detail route:     <pagePath>.html/<componentName>
@@ -15,13 +15,13 @@
         <div class="pcl-hero__inner">
             <div class="pcl-hero__badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                {{hero.badge}}
+                {{xml hero.badge}}
             </div>
             <h1 class="pcl-hero__title">
-                <span>{{hero.titleHighlight}}</span> {{hero.titleSuffix}}
+                {{xml hero.titlePrefix}} <span>{{xml hero.titleHighlight}}</span>
             </h1>
             <p class="pcl-hero__desc">
-                {{hero.description}}
+                {{xml hero.description}}
             </p>
             <div class="pcl-hero__stats">
                 <div class="pcl-hero__stat">
@@ -34,8 +34,8 @@
                 </div>
                 {{#each hero.stats}}
                 <div class="pcl-hero__stat">
-                    <span class="pcl-hero__stat-value">{{this.value}}</span>
-                    <span class="pcl-hero__stat-label">{{this.label}}</span>
+                    <span class="pcl-hero__stat-value">{{xml this.value}}</span>
+                    <span class="pcl-hero__stat-label">{{xml this.label}}</span>
                 </div>
                 {{/each}}
             </div>
@@ -47,7 +47,7 @@
         <div class="pcl-toolbar__inner">
             <div class="pcl-search">
                 <svg class="pcl-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="pcl-search__input" placeholder="Search components by name, group, or description…" />
+                <input type="search" class="pcl-search__input" aria-label="Search components" placeholder="Search by name, group, owner, status, or description…" />
             </div>
             <div class="pcl-filter-pills" id="pcl-filter-pills"></div>
         </div>
@@ -63,13 +63,13 @@
 
     {{#if features.lightbox}}
     <!--/* LIGHTBOX (reused by detail gallery) */-->
-    <div class="pcl-lightbox" id="pcl-lightbox">
+    <div class="pcl-lightbox" id="pcl-lightbox" role="dialog" aria-modal="true" aria-label="Layout preview" aria-hidden="true">
         <div class="pcl-lightbox__backdrop"></div>
         <div class="pcl-lightbox__content">
             <img src="" alt=""/>
-            <button class="pcl-lightbox__close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            <button class="pcl-lightbox__nav pcl-lightbox__nav--prev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-            <button class="pcl-lightbox__nav pcl-lightbox__nav--next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></button>
+            <button type="button" class="pcl-lightbox__close" aria-label="Close preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            <button type="button" class="pcl-lightbox__nav pcl-lightbox__nav--prev" aria-label="Previous image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button type="button" class="pcl-lightbox__nav pcl-lightbox__nav--next" aria-label="Next image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></button>
         </div>
         <p class="pcl-lightbox__caption"></p>
     </div>
@@ -77,6 +77,6 @@
 
     <!--/* FOOTER */-->
     <footer class="pcl-footer">
-        {{hero.badge}} &mdash; Component Library &middot; Auto-Discovered Design System &middot; v1.0.0
+        {{xml hero.footerText}}
     </footer>
 </div>

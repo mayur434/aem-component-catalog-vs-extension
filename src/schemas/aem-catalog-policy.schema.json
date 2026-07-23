@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AEM Component Catalog Enterprise Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "extends": {
+      "type": "array",
+      "items": { "enum": ["recommended-aemaacs", "strict-aemaacs"] },
+      "uniqueItems": true
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": { "enum": ["error", "warning", "info", "off"] }
+    },
+    "minimumQualityScore": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "allowedStatuses": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    }
+  }
+}

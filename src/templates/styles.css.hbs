@@ -17,7 +17,7 @@
     --pcl-accent: {{brand.accent}};
     --pcl-accent-hover: {{brand.accentHover}};
     --pcl-gold: {{brand.gold}};
-    --pcl-gold-hover: {{brand.goldHover}};
+    --pcl-gold-hover: {{brand.accentHover}};
     --pcl-sky: {{brand.sky}};
 
     /* Surfaces & Backgrounds */
@@ -50,7 +50,7 @@
     --pcl-transition: .3s ease-out;
 
     /* Typography */
-    --pcl-font: "{{brand.headingFont}}", "{{brand.bodyFont}}", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --pcl-font: {{brand.fontFallback}};
     --pcl-font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
 
     /* Layout */
@@ -68,9 +68,6 @@
     --pcl-badge-structure: #E8F4FD;
     --pcl-badge-structure-text: #005289;
 }
-
-/* ---------- Font Imports ---------- */
-@import url('https://fonts.googleapis.com/css2?family={{replace brand.bodyFont " " "+"}}&display=swap');
 
 /* ---------- Base Reset ---------- */
 .pcl-library *, .pcl-library *::before, .pcl-library *::after {

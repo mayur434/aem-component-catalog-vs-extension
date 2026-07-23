@@ -1,0 +1,61 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { loadConfig } from '../src/config/loader';
+import { applyGenerationPlan, buildGenerationPlan, rollbackLastGeneration } from '../src/core/generation';
+import { createAemCloudFixture, type AemFixture } from './helpers/fixture';
+
+let fixture: AemFixture | undefined;
+afterEach(() => fixture?.cleanup());
+
+describe('transactional generation', () => {
+  it('plans, applies, becomes idempotent, preserves conflicts, and rolls back', () => {
+    fixture = createAemCloudFixture();
+    const config = loadConfig(fixture.root);
+    const initial = buildGenerationPlan(fixture.root, config);
+    expect(initial.items).toHaveLength(14);
+    expect(initial.items.every((item) => item.status === 'create')).toBe(true);
+
+    const firstResult = applyGenerationPlan(initial, { actor: 'test' });
+    expect(firstResult.created).toBe(14);
+    expect(firstResult.skipped).toBe(0);
+    expect(fs.existsSync(path.join(fixture.root, '.aem-catalog-manifest.json'))).toBe(true);
+
+    const stable = buildGenerationPlan(fixture.root, config);
+    expect(stable.items.every((item) => item.status === 'unchanged')).toBe(true);
+
+    const servlet = stable.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!;
+    fs.appendFileSync(servlet.absolutePath, '\n// manual enterprise customization\n');
+    const conflict = buildGenerationPlan(fixture.root, config);
+    expect(conflict.items.find((item) => item.relativePath === servlet.relativePath)?.status).toBe(
+      'conflict',
+    );
+    const safe = applyGenerationPlan(conflict, { actor: 'test' });
+    expect(safe.skipped).toBe(1);
+    expect(fs.readFileSync(servlet.absolutePath, 'utf-8')).toContain('manual enterprise customization');
+
+    const forced = applyGenerationPlan(conflict, { actor: 'test', overwriteConflicts: true });
+    expect(forced.updated).toBe(1);
+    expect(fs.readFileSync(servlet.absolutePath, 'utf-8')).not.toContain('manual enterprise customization');
+    const transaction = rollbackLastGeneration(fixture.root, 'test');
+    expect(transaction).toBe(forced.transactionId);
+    expect(fs.readFileSync(servlet.absolutePath, 'utf-8')).toContain('manual enterprise customization');
+  });
+
+  it('renders author-only, valid OSGi JSON and hardened frontend output', () => {
+    fixture = createAemCloudFixture();
+    const plan = buildGenerationPlan(fixture.root, loadConfig(fixture.root));
+    const repoinit = plan.items.find((item) => item.relativePath.includes('RepositoryInitializer'))!;
+    const parsed = JSON.parse(repoinit.content) as { scripts: string[] };
+    expect(
+      parsed.scripts.some((script) => script.includes('forced path system/cq:services/sample-site')),
+    ).toBe(true);
+    expect(repoinit.relativePath).toContain('config.author');
+    const servlet = plan.items.find((item) => item.kind === 'java')!.content;
+    expect(servlet).toContain('getRunModes().contains("author")');
+    expect(servlet).toContain('ResourceChangeListener');
+    const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
+    expect(script).toContain('var h = esc(md)');
+    expect(script).toContain('fetchAll(endpoint)');
+  });
+});

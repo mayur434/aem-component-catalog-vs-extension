@@ -1,578 +1,138 @@
-# AEM Component Library Generator — User Manual
+# AEM Component Catalog Enterprise — User Manual
 
-> **Version:** 1.0.0  
-> **Platform:** VS Code Extension (TypeScript)  
-> **Compatibility:** AEM 6.5 / AEM as a Cloud Service
+## 1. Scope
 
----
+This extension supports Adobe Experience Manager as a Cloud Service only. It requires a Maven reactor with `core`, `ui.apps`, `ui.config`, and `all`, plus Cloud SDK or Cloud analyser markers. Legacy AEM and AMS reactors are ignored.
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Installation](#installation)
-3. [Quick Start (5-minute guide)](#quick-start)
-4. [Commands Reference](#commands-reference)
-5. [Configuration File](#configuration-file)
-6. [Generated Files](#generated-files)
-7. [Deployment](#deployment)
-8. [Customisation](#customisation)
-9. [Updating & Re-generating](#updating--re-generating)
-10. [Troubleshooting](#troubleshooting)
-11. [Architecture](#architecture)
-
----
-
-## 1. Overview
-
-The **AEM Component Library Generator** is a VS Code extension that auto-scaffolds a fully functional, brand-aligned component library for any AEM project. It generates:
-
-| Artifact | Description |
-|----------|-------------|
-| **Servlet** | Java Sling servlet that auto-discovers all components under `/apps/<appId>/components` and returns JSON |
-| **Page Component** | HTL page component with hero, toolbar, card grid, detail view, lightbox, and footer |
-| **Client Library** | JavaScript (search, filtering, detail view, lightbox, markdown renderer) and CSS (brand tokens, responsive design) |
-| **OSGi Configs** | Service user mapper + repository init for secure servlet access |
-| **Content Page** | JCR content page definition so the library is accessible at a URL |
-
-Everything is **parameterised** — brand colours, fonts, hero text, feature flags, and paths are all driven by a single `.component-library.json` configuration file.
-
----
-
-## 2. Installation
-
-### Prerequisites
-
-- **macOS** (tested on macOS; also works on Linux/Windows)
-- **Node.js** 18+ and **npm** (`brew install node` if not installed)
-- **VS Code** 1.85+
-- An AEM Maven multi-module project with the standard layout:
-  ```
-  my-project/
-  ├── core/           ← Java (servlet goes here)
-  ├── ui.apps/        ← Components, clientlibs, page component
-  ├── ui.config/      ← OSGi configs
-  └── ui.content/     ← Content pages
-  ```
-
-### Option A — Install from VSIX (Recommended)
-
-If you already have the `.vsix` file, install it directly:
+## 2. Installation from source
 
 ```bash
-# Install the extension into VS Code
-code --install-extension /path/to/aem-component-library-generator-1.0.0.vsix
+npm ci
+npm run quality
+npm run compile
+npm run package:vsix
+code --install-extension aem-component-library-generator-2.0.0.vsix
 ```
 
-Then **reload VS Code** (`Cmd+Shift+P` → "Developer: Reload Window").
+Reload VS Code after installation.
 
-### Option B — Build & Install from Source (macOS)
+## 3. First-time workflow
+
+1. Open the AEMaaCS project.
+2. Trust the workspace. Read-only discovery remains available in Restricted Mode, but writes are blocked.
+3. Run **Init** to create `.component-library.json` and `.aem-catalog-policy.json`.
+4. Run **AEM Cloud Doctor** and resolve all errors.
+5. Run **Scan Components** to review metadata and quality.
+6. Run **Preview** to inspect all file states and diffs.
+7. Run **Generate** and confirm the modal transaction prompt.
+8. Build the Maven reactor and test the catalog on the local AEM SDK Author service.
+
+## 4. Commands
+
+| Command                        | Purpose                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| Open Dashboard                 | Portfolio health, components, quality, findings, and safe actions                    |
+| Init                           | Create v2 configuration and recommended policy                                       |
+| Run AEM Cloud Doctor           | Validate AEMaaCS structure, packages, configuration, governance, RepoInit, and drift |
+| Scan Components                | Produce the detailed local governance report                                         |
+| Preview                        | Show desired artifacts, state, conflicts, orphans, and text diffs                    |
+| Generate                       | Apply safe changes in an atomic transaction                                          |
+| Update                         | Reconcile the current generator with owned artifacts                                 |
+| Roll Back Last Generation      | Restore the latest transaction snapshot                                              |
+| Export Redacted Support Bundle | Export local diagnostics without absolute project paths                              |
+
+## 5. Configuration
+
+The configuration has `schemaVersion: 2`. Unversioned v1 configuration is migrated in memory when loaded; save the file to persist v2.
+
+Main sections:
+
+- `brand`: validated colors and local font stack
+- `components`: JCR root, excluded groups, thumbnails, and layouts
+- `features`: catalog search, filters, lightbox, snippets, documentation, quality, dependencies, and accessibility
+- `output`: Java package, clientlib category, content path, title, and resource type
+- `serviceUser`: author-only service user and subservice mapping
+- `hero`: escaped catalog copy and statistics
+- `catalog`: author deployment, cache duration, and API page size
+- `governance`: policy location and metadata property names
+
+Unsafe path traversal, invalid Java/resource names, dangerous CSS characters, publish deployment, and unsupported cache/page sizes are rejected before planning.
+
+## 6. Component quality
+
+The default score is explainable and deterministic:
+
+| Capability       | Weight |
+| ---------------- | -----: |
+| Author dialog    |     25 |
+| README           |     20 |
+| Thumbnail        |     15 |
+| Owner            |     15 |
+| Lifecycle status |     15 |
+| Version          |     10 |
+
+Cloud Doctor can enforce a minimum score. It also inventories dialog fields, design dialogs, supertype dependencies, Sling Models, JSON exporters, and local content usages.
+
+## 7. Cloud Doctor
+
+Doctor validates:
+
+- positive AEMaaCS identification
+- required Maven modules and Cloud Dispatcher (`dispatcher` or `dispatcher.cloud`)
+- FileVault mutable/immutable package separation
+- `all` container embeds
+- RepoInit JSON shape and author run-mode placement
+- configuration and organization policy
+- component documentation and governance metadata
+- generated file conflicts, stale output, and orphaned manifest entries
+
+Severity is controlled by `.aem-catalog-policy.json`. `off` disables a rule. SARIF output can be uploaded by CI code-scanning systems.
+
+## 8. Generation and rollback
+
+Generated files are tracked by relative path and SHA-256-derived content hash. Manual changes are never silently replaced. Move long-lived customization into configuration, metadata, templates maintained in this extension, or a deliberate downstream overlay.
+
+Before changing files, the engine stores a transaction under `.aem-catalog/backups/<transaction-id>`. The folder and audit log are local and ignored by Git. Rollback restores prior contents and the prior ownership manifest.
+
+## 9. Runtime security
+
+- Catalog provisioning occurs under `config.author`.
+- The servlet independently checks the AEM `author` run mode.
+- The service user receives read permission only for the configured application components and clientlibs through RepoInit restrictions.
+- Runtime responses use private caching and `nosniff`.
+- Metadata is cached and invalidated by Sling resource changes.
+- README text is escaped before the limited Markdown renderer creates HTML.
+- The VS Code dashboard uses external assets, strict CSP, allow-listed messages, and discovered-project identifiers rather than paths.
+
+## 10. CI usage
 
 ```bash
-# 1. Clone or navigate to the extension source
-cd /path/to/vscode-aem-component-library
-
-# 2. Install dependencies
-npm install
-
-# 3. Compile TypeScript
-npx tsc
-
-# 4. Install the vsce packaging tool (one-time)
-npm install -g @vscode/vsce
-
-# 5. Build the VSIX package
-vsce package --allow-missing-repository
-
-# 6. Install into VS Code
-code --install-extension aem-component-library-generator-1.0.0.vsix
-
-# 7. Reload VS Code
-#    Cmd+Shift+P → "Developer: Reload Window"
+aem-catalog init --project . --yes
+aem-catalog doctor --project . --format sarif --output aem-cloud-doctor.sarif
+aem-catalog scan --project . --format csv --output component-inventory.csv
+aem-catalog plan --project . --format json --output generation-plan.json
 ```
 
-### Option C — Development Mode (for contributors)
+CI should fail when Doctor returns exit code `1`. Generation in CI requires `--yes`; conflicts still require deliberate `--force`.
 
-```bash
-cd /path/to/vscode-aem-component-library
-npm install
-npx tsc
-```
+## 11. Troubleshooting
 
-Then open the extension folder in VS Code and press `F5` to launch the Extension Development Host.
+### No AEMaaCS project found
 
-### Verify Installation
+Confirm the reactor POM uses `packaging=pom`, declares modules, and contains `aem-sdk-api`, the AEM analyser, or the standard Cloud module/Dispatcher structure.
 
-After installing, confirm the extension is active:
+### Doctor reports package separation errors
 
-```bash
-# List installed extensions (should show aem-component-library-generator)
-code --list-extensions | grep aem-component
-```
+Keep immutable code below `/apps` in `ui.apps`; put OSGi configuration in `ui.config`; put mutable content in `ui.content` or provision supported baseline structures through RepoInit.
 
-You should also see a **$(layers) AEM CL** button in the VS Code status bar (bottom-right).
+### Generation reports a conflict
 
-### Uninstall
+Open Preview and review the diff. Preserve the file and migrate customization into configuration, or use the CLI `--force` only when replacement is intended.
 
-```bash
-code --uninstall-extension pidilite.aem-component-library-generator
-```
+### Catalog endpoint returns 404
 
-Or: VS Code → Extensions sidebar (`Cmd+Shift+X`) → search "AEM Component Library" → Uninstall.
+The endpoint is author-only. Verify the request is on Author and that the catalog page exists after the author RepoInit configuration runs.
 
----
+### Need support information
 
-## 3. Quick Start
-
-### Step 1 — Initialise
-
-1. Open your AEM project folder in VS Code
-2. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
-3. Run **"AEM Component Library: Init"**
-4. Answer the prompts:
-   - **Library title** (e.g. "My Brand Component Library")
-   - **Primary brand colour** (hex, e.g. `#03438E`)
-   - **Body font** (e.g. `Roboto`)
-
-This creates `.component-library.json` at the project root.
-
-### Step 2 — Preview (Optional)
-
-Run **"AEM Component Library: Preview"** to see a dry-run of all files that will be created or updated — without writing anything to disk.
-
-### Step 3 — Generate
-
-Run **"AEM Component Library: Generate"** to scaffold all files:
-
-- `core/src/.../ComponentLibraryServlet.java`
-- `ui.apps/src/.../page/componentlibrary/body.html`
-- `ui.apps/src/.../clientlibs/clientlib-componentlibrary/js/scripts.js`
-- `ui.apps/src/.../clientlibs/clientlib-componentlibrary/css/styles.css`
-- `ui.config/src/.../osgiconfig/.../*.cfg.json`
-- `ui.content/src/.../content/<appId>/component-library/.content.xml`
-
-### Step 4 — Build & Deploy
-
-```bash
-mvn clean install -PautoInstallSinglePackage -DskipTests
-```
-
-### Step 5 — View
-
-Open your browser:
-```
-http://localhost:4502/content/<appId>/component-library.html
-```
-
-You should see your fully branded component library with all components auto-discovered.
-
----
-
-## 4. Commands Reference
-
-All commands are available via the Command Palette (`Cmd+Shift+P`).
-
-| Command | ID | Description |
-|---------|----|-------------|
-| **AEM Component Library: Init** | `aemComponentLibrary.init` | Detect the AEM project, prompt for brand settings, and create `.component-library.json` |
-| **AEM Component Library: Generate** | `aemComponentLibrary.generate` | Generate all component library files from the config |
-| **AEM Component Library: Update** | `aemComponentLibrary.update` | Re-generate files that haven't been manually modified (manifest-aware) |
-| **AEM Component Library: Preview** | `aemComponentLibrary.preview` | Dry-run showing which files would be created/updated |
-| **AEM Component Library: Scan Components** | `aemComponentLibrary.scan` | Scan local workspace for AEM components and show a coverage report |
-
-### Status Bar
-
-A **$(layers) AEM CL** button appears in the status bar. Click it to run the Generate command.
-
----
-
-## 5. Configuration File
-
-The `.component-library.json` file drives all generation. It's created by the Init command and can be edited manually. VS Code provides IntelliSense and validation via the bundled JSON schema.
-
-### Full Example
-
-```json
-{
-  "appId": "mysite",
-  "brand": {
-    "primary": "#03438E",
-    "primaryLight": "#024997",
-    "primaryDark": "#002D62",
-    "primaryDeeper": "#001B3D",
-    "accent": "#4CADE9",
-    "accentHover": "#3A9AD6",
-    "gold": "#FFD700",
-    "goldHover": "#E6C200",
-    "sky": "#00ABE8",
-    "headingFont": "articulat-cf",
-    "bodyFont": "Roboto"
-  },
-  "hero": {
-    "badge": "My Company",
-    "title": "My Company Component Library",
-    "titleHighlight": "My Company",
-    "titleSuffix": "Component Library",
-    "description": "The unified component ecosystem — auto-discovered from the codebase.",
-    "stats": [
-      { "value": "3", "label": "Brands" },
-      { "value": "v1.0", "label": "Version" }
-    ]
-  },
-  "components": {
-    "root": "/apps/mysite/components",
-    "groups": {
-      "exclude": [".hidden"]
-    },
-    "thumbnails": {
-      "fileNames": ["thumbnail.png", "thumbnail.svg", "thumbnail.jpg"]
-    },
-    "layouts": {
-      "folderName": "layouts",
-      "exclude": ["thumbnail*"]
-    }
-  },
-  "features": {
-    "search": true,
-    "groupFilter": true,
-    "lightbox": true,
-    "codeSnippets": true,
-    "readme": true,
-    "gallery": true
-  },
-  "output": {
-    "servletPackage": "com.mysite.core.servlets",
-    "pageResourceType": "mysite/components/page/componentlibrary",
-    "clientlibCategory": "mysite.componentlibrary",
-    "contentPath": "/content/mysite/component-library"
-  },
-  "serviceUser": {
-    "systemUser": "mysite-service",
-    "subServiceName": "component-library",
-    "bundleSymbolicName": "mysite.core"
-  }
-}
-```
-
-### Key Sections
-
-#### `appId`
-The root identifier for your AEM project. Must match the folder name under `/apps/`.
-
-#### `brand`
-All CSS custom properties are derived from these values. Changing `brand.primary` updates the entire colour scheme.
-
-#### `hero`
-Controls the hero section at the top of the component library page.
-
-#### `components`
-- **root**: JCR path where the servlet scans for `cq:Component` nodes
-- **groups.exclude**: Component groups to hide (e.g. `.hidden`)
-- **thumbnails.fileNames**: The servlet checks for these files in each component folder
-- **layouts.folderName**: Subfolder containing layout screenshots
-- **layouts.exclude**: Glob patterns within layouts/ to skip (e.g. `thumbnail*` goes to card, not gallery)
-
-#### `features`
-Toggle individual features on/off. Disabled features are excluded from the generated JS/HTML.
-
-#### `output`
-Controls file placement:
-- **servletPackage**: Java package for the servlet
-- **pageResourceType**: Sling resource type for the page component
-- **clientlibCategory**: AEM clientlib category name
-- **contentPath**: Where the content page is created in the JCR
-
-#### `serviceUser`
-The servlet uses a service user for secure JCR access. These values configure the OSGi service user mapper and repoinit scripts.
-
----
-
-## 6. Generated Files
-
-### Servlet (`ComponentLibraryServlet.java`)
-
-**Location:** `core/src/main/java/<package>/ComponentLibraryServlet.java`
-
-- Registered with `@SlingServletResourceTypes` (not deprecated path-based binding)
-- Auto-discovers all `cq:Component` nodes under the configured root
-- Returns JSON with: `total`, `groups` (with counts), `components` array
-- Each component includes: name, title, description, group, resourceType, superType, isContainer, hasDialog, hasEditConfig, readmePath, thumbnailPath, layouts[]
-- Uses a service user for secure access
-
-### Page Component
-
-**Location:** `ui.apps/src/.../components/page/componentlibrary/`
-
-| File | Purpose |
-|------|---------|
-| `.content.xml` | Component definition (hidden group, extends base page) |
-| `body.html` | HTL shell — hero, toolbar, content area, lightbox, footer |
-| `customheaderlibs.html` | Loads the clientlib CSS |
-| `customfooterlibs.html` | Loads the clientlib JS |
-
-### Client Library
-
-**Location:** `ui.apps/src/.../clientlibs/clientlib-componentlibrary/`
-
-| File | Purpose |
-|------|---------|
-| `.content.xml` | Clientlib definition with category |
-| `js.txt` | JS file manifest |
-| `css.txt` | CSS file manifest |
-| `js/scripts.js` | All JavaScript — fetch, render listing, render detail, search, filter, lightbox, markdown |
-| `css/styles.css` | All CSS — brand tokens, hero, toolbar, cards, detail, gallery, lightbox, responsive |
-
-### OSGi Configs
-
-**Location:** `ui.config/src/.../osgiconfig/config/`
-
-| File | Purpose |
-|------|---------|
-| `org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-componentlibrary.cfg.json` | Maps bundle:subservice → system user |
-| `org.apache.sling.jcr.repoinit.RepositoryInitializer-componentlibrary.cfg.json` | Creates service user + sets ACLs |
-
-### Content Page
-
-**Location:** `ui.content/src/.../content/<appId>/component-library/.content.xml`
-
-Creates the `cq:Page` node so the library is accessible at the configured URL.
-
----
-
-## 7. Deployment
-
-### Local AEM (SDK)
-
-```bash
-# Full build
-mvn clean install -PautoInstallSinglePackage -DskipTests
-
-# Just the core bundle (servlet only)
-mvn clean install -PautoInstallBundle -pl core -DskipTests
-
-# Just ui.apps (page component + clientlib)
-mvn clean install -PautoInstallPackage -pl ui.apps -DskipTests
-```
-
-### Cloud Manager
-
-Commit the generated files to your repository. Cloud Manager builds and deploys the standard modules.
-
-### Service User Setup
-
-If you're on **AEM 6.5** (not Cloud), you may need to manually create the service user in the Security console:
-
-1. Go to `http://localhost:4502/crx/explorer/index.jsp`
-2. Create system user: `<your-service-user>`
-3. Set read permissions on `/apps/<appId>/components` and `/apps/<appId>/clientlibs`
-
-On **AEM as a Cloud Service**, the repoinit config handles this automatically.
-
----
-
-## 8. Customisation
-
-### Changing Brand Colours
-
-Edit `.component-library.json`:
-
-```json
-{
-  "brand": {
-    "primary": "#E63946",
-    "primaryLight": "#F04E5C",
-    "primaryDark": "#C41E30",
-    "primaryDeeper": "#8B0000"
-  }
-}
-```
-
-Then run **"AEM Component Library: Update"**.
-
-### Adding Custom Hero Stats
-
-```json
-{
-  "hero": {
-    "stats": [
-      { "value": "5", "label": "Brands" },
-      { "value": "v2.1", "label": "Version" },
-      { "value": "12", "label": "Markets" }
-    ]
-  }
-}
-```
-
-### Disabling Features
-
-```json
-{
-  "features": {
-    "lightbox": false,
-    "readme": false
-  }
-}
-```
-
-### Custom Modifications
-
-After generating, you can freely edit any generated file. The **Update** command uses a manifest (`.clgen-manifest.json`) to track file hashes. If you modify a file manually, Update will **skip** it and report which files were not updated.
-
-To force a full re-generation (overwriting manual changes):
-1. Delete `.clgen-manifest.json`
-2. Run **Generate** again
-
----
-
-## 9. Updating & Re-generating
-
-### Update (Safe)
-
-```
-Cmd+Shift+P → AEM Component Library: Update
-```
-
-- Only regenerates files whose content matches the manifest hash
-- Files you modified manually are preserved
-- Shows a summary: "3 files updated, 1 skipped (manually modified): styles.css"
-
-### Full Regenerate
-
-```
-Cmd+Shift+P → AEM Component Library: Generate
-```
-
-- Overwrites all files
-- Resets the manifest
-- Use when you want a clean slate
-
----
-
-## 10. Troubleshooting
-
-### "No AEM project found"
-
-Make sure your workspace root contains a `pom.xml` with `<packaging>pom</packaging>` and sub-modules like `core`, `ui.apps`, etc.
-
-### Servlet returns empty data
-
-1. **Bundle active?** Check `http://localhost:4502/system/console/bundles` — search for your bundle
-2. **Service user mapped?** Check `http://localhost:4502/system/console/configMgr` → search "Service User Mapper"
-3. **ACLs set?** Check `http://localhost:4502/system/console/configMgr` → search "Repository Initializer"
-4. **Components exist?** Verify `/apps/<appId>/components` has `cq:Component` nodes with `componentGroup` property
-
-### Servlet returns 404
-
-The page component's `sling:resourceType` must match the servlet's `@SlingServletResourceTypes`. The JS calls `<pagePath>/_jcr_content.components.json` — this resolves against the `jcr:content` node's resource type.
-
-### Styles not loading
-
-1. Check the clientlib category matches in the config
-2. Verify `customheaderlibs.html` and `customfooterlibs.html` exist in the page component
-3. Check browser console for 404s on CSS/JS
-
-### "Service user authentication failed"
-
-The repoinit config needs to be deployed. On local AEM:
-
-```bash
-mvn clean install -PautoInstallSinglePackage -pl ui.config -DskipTests
-```
-
-### SVG images collapse to 0×0 in lightbox
-
-This is handled by the generated CSS (`width: 80vw; max-width: 900px` on `.pcl-lightbox__content`, `width: 100%; height: auto` on the `img`). If you see this after customising styles, ensure these rules are present.
-
----
-
-## 11. Architecture
-
-### How It Works
-
-```
-┌─────────────────────────────────────────────────┐
-│               VS Code Extension                  │
-│                                                   │
-│  Init ──► .component-library.json                │
-│                    │                              │
-│  Generate ──► Handlebars Templates + Config      │
-│                    │                              │
-│                    ▼                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
-│  │  Servlet  │  │   Page   │  │ Clientlib │       │
-│  │  (Java)   │  │  (HTL)   │  │ (JS+CSS)  │       │
-│  └──────────┘  └──────────┘  └──────────┘       │
-│  ┌──────────┐  ┌──────────┐                      │
-│  │  OSGi    │  │ Content  │                      │
-│  │ Configs  │  │  Page    │                      │
-│  └──────────┘  └──────────┘                      │
-└─────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────┐
-│                  AEM Runtime                      │
-│                                                   │
-│  Browser ──► /content/<app>/component-library     │
-│                    │                              │
-│         ┌──────────┴──────────┐                  │
-│         │ Page Component      │                  │
-│         │ (body.html)         │                  │
-│         └──────────┬──────────┘                  │
-│                    │                              │
-│    JS calls /_jcr_content.components.json        │
-│                    │                              │
-│         ┌──────────┴──────────┐                  │
-│         │ Servlet              │                  │
-│         │ (service user)       │                  │
-│         └──────────┬──────────┘                  │
-│                    │                              │
-│    Scans /apps/<app>/components                  │
-│    Returns JSON: components + groups + metadata  │
-│                    │                              │
-│    JS renders listing OR detail (suffix routing)  │
-└─────────────────────────────────────────────────┘
-```
-
-### File Manifest
-
-The `.clgen-manifest.json` file tracks generated files:
-
-```json
-{
-  "version": 1,
-  "generatedAt": "2024-01-15T10:30:00.000Z",
-  "configHash": "a1b2c3...",
-  "files": {
-    "/path/to/servlet.java": {
-      "hash": "d4e5f6...",
-      "generatedAt": "2024-01-15T10:30:00.000Z"
-    }
-  }
-}
-```
-
-This enables the **Update** command to detect manual modifications and skip those files.
-
----
-
-## FAQ
-
-**Q: Can I use this with multiple AEM projects in the same workspace?**  
-A: Yes. The Init command detects all AEM projects and lets you pick one. Each project gets its own `.component-library.json`.
-
-**Q: Does the servlet work on AEM as a Cloud Service?**  
-A: Yes. It uses `@SlingServletResourceTypes` (not the deprecated path-based approach) and repoinit for service user creation.
-
-**Q: Can I change the page URL?**  
-A: Yes. Edit `output.contentPath` in the config, then re-generate.
-
-**Q: What if I want to add custom sections to the detail view?**  
-A: Edit `scripts.js` after generation. The Update command will detect your changes and skip `scripts.js` on future updates.
-
-**Q: How do I add component thumbnails?**  
-A: Place a `thumbnail.png` (or `.svg`/`.jpg`) file directly inside each component folder under `/apps/<appId>/components/<component-name>/`. The servlet picks these up automatically.
-
-**Q: How do I add layout screenshots?**  
-A: Create a `layouts/` folder inside each component folder and add `.png`, `.svg`, `.jpg`, or `.webp` images. These appear in the detail view gallery. Files matching `thumbnail*` go to the card view instead.
-
----
-
-*Generated by AEM Component Library Generator v1.0.0*
+Run **Export Redacted Support Bundle**. Inspect the JSON before sharing it with your support team.

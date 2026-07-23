@@ -1,5 +1,9 @@
 out/
 node_modules/
 *.vsix
+!releases/aem-component-library-generator-2.0.0.vsix
 .vscode-test/
 .DS_Store
+.aem-catalog/
+coverage/
+sbom.cdx.json

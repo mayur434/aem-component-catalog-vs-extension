@@ -1,119 +1,105 @@
-/**
- * Resolve AEM module paths from a detected project structure.
- * Supports both AEMaaCS (cloud) and AEM AMS (6.x) project layouts.
- */
-import * as path from 'path';
+/** Resolve standard AEM as a Cloud Service project locations. */
 import * as fs from 'fs';
-import { ComponentLibraryConfig } from '../config/schema';
+import * as path from 'path';
+import type { ComponentLibraryConfig } from '../config/schema';
+import { assertPathInside } from './pathSecurity';
 
 export interface AemPaths {
   root: string;
   core: string;
   uiApps: string;
-  uiConfig: string | null;
+  uiConfig: string;
   uiContent: string | null;
-  all: string | null;
-
-  /** Whether ui.config module exists (AEMaaCS) */
-  hasUiConfig: boolean;
-  /** Whether ui.content module exists */
-  hasUiContent: boolean;
-
-  /** Java source root for the core bundle */
+  all: string;
   javaSrc: string;
-
-  /** Servlet output path */
   servletFile(config: ComponentLibraryConfig): string;
-
-  /** Page component folder under ui.apps */
   pageComponentDir(config: ComponentLibraryConfig): string;
-
-  /** Clientlib folder under ui.apps */
   clientlibDir(config: ComponentLibraryConfig): string;
-
-  /** OSGi config folder — ui.config for Cloud, ui.apps for AMS */
   osgiConfigDir(config: ComponentLibraryConfig): string;
-
-  /** Content page folder under ui.content (AMS) — null for Cloud (uses RepoInit) */
-  contentDir(config: ComponentLibraryConfig): string;
 }
 
 export function resolveAemPaths(projectRoot: string): AemPaths {
-  const core = resolveModule(projectRoot, 'core');
-  const uiApps = resolveModule(projectRoot, 'ui.apps');
-
-  // Optional modules — AMS may not have ui.config, Cloud may not deploy ui.content
-  const uiConfig = resolveModuleOptional(projectRoot, 'ui.config');
-  const uiContent = resolveModuleOptional(projectRoot, 'ui.content');
-  const all = resolveModuleOptional(projectRoot, 'all');
-
-  const hasUiConfig = uiConfig !== null;
-  const hasUiContent = uiContent !== null;
-
-  // Detect java source root from core module
+  const root = fs.realpathSync(projectRoot);
+  const core = requireModule(root, 'core');
+  const uiApps = requireModule(root, 'ui.apps');
+  const uiConfig = requireModule(root, 'ui.config');
+  const all = requireModule(root, 'all');
+  const uiContent = optionalModule(root, 'ui.content');
   const javaSrc = path.join(core, 'src', 'main', 'java');
 
+  const within = (candidate: string): string => assertPathInside(root, candidate, 'Generated output');
+
   return {
-    root: projectRoot,
+    root,
     core,
     uiApps,
     uiConfig,
     uiContent,
     all,
-    hasUiConfig,
-    hasUiContent,
     javaSrc,
-
-    servletFile(config: ComponentLibraryConfig): string {
-      const pkgPath = config.output.servletPackage.replace(/\./g, '/');
-      return path.join(javaSrc, pkgPath, 'ComponentLibraryServlet.java');
-    },
-
-    pageComponentDir(config: ComponentLibraryConfig): string {
-      return path.join(
-        uiApps, 'src', 'main', 'content', 'jcr_root',
-        'apps', config.appId, 'components', 'page', 'componentlibrary'
+    servletFile(config) {
+      return within(
+        path.join(javaSrc, config.output.servletPackage.replace(/\./g, '/'), 'ComponentLibraryServlet.java'),
       );
     },
-
-    clientlibDir(config: ComponentLibraryConfig): string {
-      return path.join(
-        uiApps, 'src', 'main', 'content', 'jcr_root',
-        'apps', config.appId, 'clientlibs', 'clientlib-componentlibrary'
+    pageComponentDir(config) {
+      return within(
+        path.join(
+          uiApps,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'components',
+          'page',
+          'componentlibrary',
+        ),
       );
     },
-
-    osgiConfigDir(config: ComponentLibraryConfig): string {
-      // Prefer ui.config (Cloud), fall back to ui.apps (AMS)
-      const base = uiConfig || uiApps;
-      return path.join(
-        base, 'src', 'main', 'content',
-        'jcr_root', 'apps', config.appId, 'osgiconfig', 'config'
+    clientlibDir(config) {
+      return within(
+        path.join(
+          uiApps,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'clientlibs',
+          'clientlib-componentlibrary',
+        ),
       );
     },
-
-    contentDir(config: ComponentLibraryConfig): string {
-      // For AMS, content page goes into ui.content (which IS deployed)
-      // For Cloud, this path is only used as fallback — RepoInit is preferred
-      const base = uiContent || uiApps;
-      const segments = config.output.contentPath.split('/').filter(Boolean);
-      return path.join(
-        base, 'src', 'main', 'content', 'jcr_root',
-        ...segments
+    osgiConfigDir(config) {
+      return within(
+        path.join(
+          uiConfig,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'osgiconfig',
+          'config.author',
+        ),
       );
     },
   };
 }
 
-function resolveModule(root: string, name: string): string {
-  const dir = path.join(root, name);
-  if (!fs.existsSync(dir)) {
-    throw new Error(`AEM module "${name}" not found at: ${dir}`);
+function requireModule(root: string, name: string): string {
+  const modulePath = path.join(root, name);
+  if (!fs.existsSync(modulePath)) {
+    throw new Error(`Required AEMaaCS module "${name}" not found at ${modulePath}`);
   }
-  return dir;
+  return fs.realpathSync(modulePath);
 }
 
-function resolveModuleOptional(root: string, name: string): string | null {
-  const dir = path.join(root, name);
-  return fs.existsSync(dir) ? dir : null;
+function optionalModule(root: string, name: string): string | null {
+  const modulePath = path.join(root, name);
+  return fs.existsSync(modulePath) ? fs.realpathSync(modulePath) : null;
 }

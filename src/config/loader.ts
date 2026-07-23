@@ -3,7 +3,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { ComponentLibraryConfig } from './schema';
+import type { ComponentLibraryConfig } from './schema';
 import { getDefaults } from './defaults';
 
 const CONFIG_FILE = '.component-library.json';
@@ -44,7 +44,8 @@ export function loadConfig(projectRoot: string): ComponentLibraryConfig {
     throw new Error('"appId" is required and must be a non-empty string in .component-library.json');
   }
 
-  const merged = deepMerge(getDefaults(userConfig.appId), userConfig) as ComponentLibraryConfig;
+  const migrated = migrateConfig(userConfig);
+  const merged = deepMerge(getDefaults(migrated.appId), migrated) as ComponentLibraryConfig;
 
   // Validate critical fields after merge
   const errors = validateConfig(merged);
@@ -64,8 +65,14 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   // appId
   if (!config.appId || !config.appId.trim()) {
     errors.push('appId is required');
-  } else if (!/^[a-zA-Z0-9_-]+$/.test(config.appId)) {
-    errors.push('appId must contain only letters, numbers, hyphens, and underscores');
+  } else if (!/^[a-z][a-z0-9-]*$/.test(config.appId)) {
+    errors.push(
+      'appId must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens',
+    );
+  }
+
+  if (config.schemaVersion !== 2) {
+    errors.push('schemaVersion must be 2');
   }
 
   // output
@@ -77,14 +84,20 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
 
   if (!config.output.contentPath || !config.output.contentPath.startsWith('/content/')) {
     errors.push('output.contentPath must start with /content/');
+  } else if (!isSafeJcrPath(config.output.contentPath)) {
+    errors.push('output.contentPath contains unsafe path segments');
   }
 
   if (!config.output.pageResourceType || !config.output.pageResourceType.trim()) {
     errors.push('output.pageResourceType is required');
+  } else if (!/^[a-z0-9][a-z0-9/_-]*$/.test(config.output.pageResourceType)) {
+    errors.push('output.pageResourceType must be a safe relative resource type');
   }
 
   if (!config.output.clientlibCategory || !config.output.clientlibCategory.trim()) {
     errors.push('output.clientlibCategory is required');
+  } else if (!/^[a-zA-Z0-9._-]+$/.test(config.output.clientlibCategory)) {
+    errors.push('output.clientlibCategory contains unsupported characters');
   }
 
   // service user
@@ -94,12 +107,25 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   if (!config.serviceUser.bundleSymbolicName || !config.serviceUser.bundleSymbolicName.trim()) {
     errors.push('serviceUser.bundleSymbolicName is required');
   }
+  if (!/^[a-zA-Z0-9._-]+$/.test(config.serviceUser.name)) {
+    errors.push('serviceUser.name contains unsupported characters');
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(config.serviceUser.subServiceName)) {
+    errors.push('serviceUser.subServiceName contains unsupported characters');
+  }
 
   // brand colors - validate hex format
   const hexPattern = /^#[0-9a-fA-F]{3,8}$/;
   const colorFields: Array<keyof typeof config.brand> = [
-    'primary', 'primaryLight', 'primaryDark', 'primaryDeeper',
-    'accent', 'accentHover', 'gold', 'sky', 'background',
+    'primary',
+    'primaryLight',
+    'primaryDark',
+    'primaryDeeper',
+    'accent',
+    'accentHover',
+    'gold',
+    'sky',
+    'background',
   ];
   for (const field of colorFields) {
     const val = config.brand[field];
@@ -107,18 +133,82 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
       errors.push(`brand.${field} must be a valid hex color (got "${val}")`);
     }
   }
+  for (const field of ['font', 'fontFallback'] as const) {
+    if (!config.brand[field] || /[{};<>\u0000-\u001f]/.test(config.brand[field])) {
+      errors.push(`brand.${field} contains unsafe CSS characters`);
+    }
+  }
 
   // components root
   if (!config.components.root || !config.components.root.startsWith('/apps/')) {
     errors.push('components.root must start with /apps/');
+  } else if (!isSafeJcrPath(config.components.root)) {
+    errors.push('components.root contains unsafe path segments');
+  }
+
+  if (config.catalog.deploymentTarget !== 'author') {
+    errors.push('catalog.deploymentTarget must be "author" for the AEMaaCS enterprise catalog');
+  }
+  for (const [name, value] of Object.entries({
+    ownerProperty: config.governance.ownerProperty,
+    statusProperty: config.governance.statusProperty,
+    versionProperty: config.governance.versionProperty,
+    tagsProperty: config.governance.tagsProperty,
+  })) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9:_-]*$/.test(value)) {
+      errors.push(`governance.${name} must be a valid JCR property name`);
+    }
+  }
+  if (
+    !config.governance.policyFile ||
+    path.isAbsolute(config.governance.policyFile) ||
+    config.governance.policyFile.split(/[\\/]/).includes('..')
+  ) {
+    errors.push('governance.policyFile must be a project-relative path without parent traversal');
+  }
+  if (
+    !Number.isInteger(config.catalog.cacheSeconds) ||
+    config.catalog.cacheSeconds < 0 ||
+    config.catalog.cacheSeconds > 3600
+  ) {
+    errors.push('catalog.cacheSeconds must be an integer between 0 and 3600');
+  }
+  if (
+    !Number.isInteger(config.catalog.pageSize) ||
+    config.catalog.pageSize < 25 ||
+    config.catalog.pageSize > 1000
+  ) {
+    errors.push('catalog.pageSize must be an integer between 25 and 1000');
   }
 
   return errors;
 }
 
+/** Upgrade v1/unversioned configuration without mutating the caller's object. */
+export function migrateConfig(input: Record<string, any>): Record<string, any> {
+  const migrated = JSON.parse(JSON.stringify(input)) as Record<string, any>;
+  delete migrated.projectType;
+  migrated.schemaVersion = 2;
+  if (migrated.features?.groupFilter !== undefined && migrated.features.groupFilters === undefined) {
+    migrated.features.groupFilters = migrated.features.groupFilter;
+    delete migrated.features.groupFilter;
+  }
+  if (migrated.serviceUser?.systemUser && !migrated.serviceUser.name) {
+    migrated.serviceUser.name = migrated.serviceUser.systemUser;
+    delete migrated.serviceUser.systemUser;
+  }
+  return migrated;
+}
+
 export function saveConfig(projectRoot: string, config: Partial<ComponentLibraryConfig>): void {
   const cfgFile = configPath(projectRoot);
-  fs.writeFileSync(cfgFile, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+  const temporary = `${cfgFile}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(temporary, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf-8', mode: 0o600 });
+    fs.renameSync(temporary, cfgFile);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
 }
 
 function deepMerge(target: Record<string, any>, source: Record<string, any>): Record<string, any> {
@@ -138,4 +228,12 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
     }
   }
   return result;
+}
+
+function isSafeJcrPath(value: string): boolean {
+  return (
+    !value.includes('..') &&
+    !/[\\\u0000-\u001f"'<>]/.test(value) &&
+    value.split('/').every((segment) => !segment || /^[a-zA-Z0-9._:-]+$/.test(segment))
+  );
 }

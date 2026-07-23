@@ -1,123 +1,143 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AEM Component Library Configuration",
-  "description": "Configuration for the AEM Component Library Generator VS Code extension.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pidilite.example/schemas/aem-component-catalog-v2.json",
+  "title": "AEMaaCS Enterprise Component Catalog Configuration",
   "type": "object",
-  "required": ["appId"],
+  "additionalProperties": false,
+  "required": ["schemaVersion", "appId"],
   "properties": {
-    "appId": {
-      "type": "string",
-      "description": "The AEM application ID (e.g. 'mysite'). Used as the root folder name under /apps/.",
-      "pattern": "^[a-z][a-z0-9-]*$"
-    },
+    "schemaVersion": { "const": 2 },
+    "appId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
     "brand": {
       "type": "object",
-      "description": "Brand colours and typography tokens.",
+      "additionalProperties": false,
       "properties": {
-        "primary": { "type": "string", "description": "Primary brand colour (hex).", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "primaryLight": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "primaryDark": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "primaryDeeper": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "accent": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "accentHover": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "gold": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "goldHover": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "sky": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-        "headingFont": { "type": "string", "description": "Heading font family name." },
-        "bodyFont": { "type": "string", "description": "Body font family name (loaded from Google Fonts)." }
-      }
-    },
-    "hero": {
-      "type": "object",
-      "description": "Hero section configuration.",
-      "properties": {
-        "badge": { "type": "string", "description": "Text shown in the hero badge." },
-        "title": { "type": "string", "description": "Full hero title." },
-        "titleHighlight": { "type": "string", "description": "Highlighted (gold gradient) word in the title." },
-        "titleSuffix": { "type": "string", "description": "Text after the highlighted word." },
-        "description": { "type": "string", "description": "Hero paragraph text." },
-        "stats": {
-          "type": "array",
-          "description": "Additional stat cards in the hero (Components and Groups are auto-populated).",
-          "items": {
-            "type": "object",
-            "required": ["value", "label"],
-            "properties": {
-              "value": { "type": "string" },
-              "label": { "type": "string" }
-            }
-          }
-        }
+        "primary": { "$ref": "#/$defs/color" },
+        "primaryLight": { "$ref": "#/$defs/color" },
+        "primaryDark": { "$ref": "#/$defs/color" },
+        "primaryDeeper": { "$ref": "#/$defs/color" },
+        "accent": { "$ref": "#/$defs/color" },
+        "accentHover": { "$ref": "#/$defs/color" },
+        "gold": { "$ref": "#/$defs/color" },
+        "sky": { "$ref": "#/$defs/color" },
+        "background": { "$ref": "#/$defs/color" },
+        "font": { "type": "string", "maxLength": 120 },
+        "fontFallback": { "type": "string", "maxLength": 240 }
       }
     },
     "components": {
       "type": "object",
-      "description": "Component scanning configuration.",
+      "additionalProperties": false,
       "properties": {
-        "root": { "type": "string", "description": "JCR path to the components root (e.g. '/apps/mysite/components')." },
+        "root": { "type": "string", "pattern": "^/apps/[a-zA-Z0-9._:/-]+$" },
         "groups": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "exclude": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Component groups to exclude (e.g. '.hidden')."
-            }
+            "exclude": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "labels": { "type": "object", "additionalProperties": { "type": "string" } }
           }
         },
         "thumbnails": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "fileNames": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "File names to look for as component thumbnail (e.g. ['thumbnail.png', 'thumbnail.svg'])."
-            }
+            "fileNames": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "fallbackIcon": { "type": "string" }
           }
         },
         "layouts": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "folderName": { "type": "string", "description": "Folder name containing layout screenshots (default: 'layouts')." },
-            "exclude": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Glob patterns of files in layouts/ to exclude (e.g. ['thumbnail*'])."
-            }
+            "folderName": { "type": "string" },
+            "exclude": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
           }
         }
       }
     },
     "features": {
       "type": "object",
-      "description": "Feature flags for the generated component library.",
+      "additionalProperties": false,
       "properties": {
-        "search": { "type": "boolean", "description": "Enable search bar.", "default": true },
-        "groupFilter": { "type": "boolean", "description": "Enable group filter pills.", "default": true },
-        "lightbox": { "type": "boolean", "description": "Enable image lightbox.", "default": true },
-        "codeSnippets": { "type": "boolean", "description": "Enable HTL/XML code snippets.", "default": true },
-        "readme": { "type": "boolean", "description": "Enable README rendering.", "default": true },
-        "gallery": { "type": "boolean", "description": "Enable layout gallery.", "default": true }
+        "search": { "type": "boolean" },
+        "groupFilters": { "type": "boolean" },
+        "lightbox": { "type": "boolean" },
+        "codeSnippets": { "type": "boolean" },
+        "readme": { "type": "boolean" },
+        "darkMode": { "type": "boolean" },
+        "qualityScore": { "type": "boolean" },
+        "dependencyGraph": { "type": "boolean" },
+        "accessibility": { "type": "boolean" }
       }
     },
     "output": {
       "type": "object",
-      "description": "Output path configuration.",
+      "additionalProperties": false,
       "properties": {
-        "servletPackage": { "type": "string", "description": "Java package for the servlet class." },
-        "pageResourceType": { "type": "string", "description": "Sling resource type for the component library page." },
-        "clientlibCategory": { "type": "string", "description": "Clientlib category name." },
-        "contentPath": { "type": "string", "description": "Content page path in the JCR (e.g. '/content/mysite/component-library')." }
+        "servletPackage": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9]*(\\.[a-zA-Z][a-zA-Z0-9]*)+$" },
+        "clientlibCategory": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" },
+        "contentPath": { "type": "string", "pattern": "^/content/[a-zA-Z0-9._:/-]+$" },
+        "pageTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "pageResourceType": { "type": "string", "pattern": "^[a-z0-9][a-z0-9/_-]*$" }
       }
     },
     "serviceUser": {
       "type": "object",
-      "description": "Service user configuration for the servlet.",
+      "additionalProperties": false,
       "properties": {
-        "systemUser": { "type": "string", "description": "System user name." },
-        "subServiceName": { "type": "string", "description": "Sub-service name for the ResourceResolverFactory mapping." },
-        "bundleSymbolicName": { "type": "string", "description": "OSGi bundle symbolic name (e.g. 'mysite.core')." }
+        "name": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" },
+        "subServiceName": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" },
+        "bundleSymbolicName": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" }
+      }
+    },
+    "hero": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "badge": { "type": "string", "maxLength": 80 },
+        "titlePrefix": { "type": "string", "maxLength": 120 },
+        "titleHighlight": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 },
+        "stats": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "value"],
+            "properties": {
+              "label": { "type": "string", "maxLength": 80 },
+              "value": { "type": "string", "maxLength": 80 }
+            }
+          }
+        },
+        "footerText": { "type": "string", "maxLength": 240 }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deploymentTarget": { "const": "author" },
+        "cacheSeconds": { "type": "integer", "minimum": 0, "maximum": 3600 },
+        "pageSize": { "type": "integer", "minimum": 25, "maximum": 1000 }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyFile": { "type": "string" },
+        "ownerProperty": { "$ref": "#/$defs/propertyName" },
+        "statusProperty": { "$ref": "#/$defs/propertyName" },
+        "versionProperty": { "$ref": "#/$defs/propertyName" },
+        "tagsProperty": { "$ref": "#/$defs/propertyName" }
       }
     }
+  },
+  "$defs": {
+    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "propertyName": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9:_-]*$" }
   }
 }

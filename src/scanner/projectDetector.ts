@@ -1,12 +1,7 @@
-/**
- * Detect AEM project structure from a workspace root.
- * Reads the reactor POM to extract artifactId, groupId, version, and modules.
- */
+/** Detect AEM as a Cloud Service Maven reactor projects. */
 import * as fs from 'fs';
 import * as path from 'path';
 import { XMLParser } from 'fast-xml-parser';
-
-export type AemProjectType = 'cloud' | 'ams';
 
 export interface ProjectInfo {
   root: string;
@@ -15,187 +10,143 @@ export interface ProjectInfo {
   version: string;
   javaPackage: string;
   modules: string[];
-  /** Detected project type — AEMaaCS ('cloud') or AEM AMS ('ams') */
-  projectType: AemProjectType;
-  /** Java compiler target version */
+  platform: 'aemaacs';
   javaVersion: string;
 }
 
-/**
- * Scan a directory for a reactor pom.xml and extract project metadata.
- */
+interface PomProject {
+  artifactId?: string;
+  groupId?: string;
+  version?: string;
+  packaging?: string;
+  parent?: { groupId?: string; version?: string };
+  modules?: { module?: string | string[] };
+}
+
 export function detectProject(workspaceRoot: string): ProjectInfo | null {
-  // Look for pom.xml in root or one level down
-  const candidates = [workspaceRoot];
-  try {
-    const entries = fs.readdirSync(workspaceRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        candidates.push(path.join(workspaceRoot, entry.name));
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  for (const dir of candidates) {
-    const pomFile = path.join(dir, 'pom.xml');
-    if (!fs.existsSync(pomFile)) { continue; }
-    const info = parsePom(dir, pomFile);
-    if (info && info.modules.length > 0) {
-      return info;
-    }
-  }
-
-  return null;
+  return detectAllProjects(workspaceRoot)[0] ?? null;
 }
 
-/**
- * Find all AEM projects in a workspace (multi-project support).
- */
+/** Find AEMaaCS reactors at the workspace root or one directory below it. */
 export function detectAllProjects(workspaceRoot: string): ProjectInfo[] {
-  const results: ProjectInfo[] = [];
+  const candidates = new Set<string>([path.resolve(workspaceRoot)]);
   try {
-    const entries = fs.readdirSync(workspaceRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) { continue; }
-      const dir = path.join(workspaceRoot, entry.name);
-      const pomFile = path.join(dir, 'pom.xml');
-      if (!fs.existsSync(pomFile)) { continue; }
-      const info = parsePom(dir, pomFile);
-      if (info && info.modules.length > 0) {
-        results.push(info);
+    for (const entry of fs.readdirSync(workspaceRoot, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        candidates.add(path.resolve(workspaceRoot, entry.name));
       }
     }
   } catch {
-    // ignore
+    return [];
   }
-  // Also check workspace root itself
-  const rootPom = path.join(workspaceRoot, 'pom.xml');
-  if (fs.existsSync(rootPom)) {
-    const info = parsePom(workspaceRoot, rootPom);
-    if (info && info.modules.length > 0 && !results.find(r => r.root === workspaceRoot)) {
-      results.push(info);
-    }
-  }
-  return results;
+
+  return [...candidates]
+    .map((root) => parseAemCloudProject(root))
+    .filter((project): project is ProjectInfo => project !== null)
+    .sort((a, b) => a.root.localeCompare(b.root));
 }
 
-function parsePom(dir: string, pomFile: string): ProjectInfo | null {
+export function parseAemCloudProject(projectRoot: string): ProjectInfo | null {
+  const pomFile = path.join(projectRoot, 'pom.xml');
+  if (!fs.existsSync(pomFile)) {
+    return null;
+  }
+
   try {
     const xml = fs.readFileSync(pomFile, 'utf-8');
     const parser = new XMLParser({ ignoreAttributes: false });
-    const doc = parser.parse(xml);
-    const project = doc.project;
-    if (!project) { return null; }
-
-    const artifactId = project.artifactId || '';
-    const groupId = project.groupId || project.parent?.groupId || '';
-    const version = project.version || project.parent?.version || '';
-    const packaging = project.packaging || 'jar';
-
-    // Only reactor (pom packaging) with modules
-    if (packaging !== 'pom') { return null; }
-
-    let modules: string[] = [];
-    if (project.modules?.module) {
-      modules = Array.isArray(project.modules.module)
-        ? project.modules.module
-        : [project.modules.module];
+    const project = parser.parse(xml)?.project as PomProject | undefined;
+    if (!project || (project.packaging ?? 'jar') !== 'pom') {
+      return null;
     }
 
-    // Detect java package from existing source files
-    const javaPackage = detectJavaPackage(dir, artifactId, groupId);
+    const moduleValue = project.modules?.module;
+    const modules = moduleValue ? (Array.isArray(moduleValue) ? moduleValue : [moduleValue]) : [];
+    if (modules.length === 0 || !isAemCloudReactor(projectRoot, xml, modules)) {
+      return null;
+    }
 
-    // Detect project type: AEMaaCS vs AMS
-    const projectType = detectProjectType(dir, xml);
-
-    // Detect Java version
-    const javaVersion = detectJavaVersion(xml);
-
-    return { root: dir, artifactId, groupId, version, javaPackage, modules, projectType, javaVersion };
+    const artifactId = String(project.artifactId ?? '');
+    const groupId = String(project.groupId ?? project.parent?.groupId ?? '');
+    return {
+      root: projectRoot,
+      artifactId,
+      groupId,
+      version: String(project.version ?? project.parent?.version ?? ''),
+      javaPackage: detectJavaPackage(projectRoot, artifactId, groupId),
+      modules: modules.map(String),
+      platform: 'aemaacs',
+      javaVersion: detectJavaVersion(xml),
+    };
   } catch {
     return null;
   }
 }
 
-/**
- * Detect whether this is an AEMaaCS or AEM AMS project.
- * Heuristics:
- *  - aem-sdk-api dependency → cloud
- *  - aemanalyser-maven-plugin → cloud
- *  - ui.apps.structure module → cloud
- *  - uber-jar dependency → ams
- *  - otherwise → ams (safer default)
- */
-function detectProjectType(projectRoot: string, pomXml: string): AemProjectType {
-  // Check for Cloud SDK indicators
-  if (pomXml.includes('aem-sdk-api') || pomXml.includes('aemanalyser')) {
-    return 'cloud';
-  }
-  if (fs.existsSync(path.join(projectRoot, 'ui.apps.structure'))) {
-    return 'cloud';
-  }
-  return 'ams';
+function isAemCloudReactor(projectRoot: string, pomXml: string, modules: string[]): boolean {
+  const hasCloudApi = pomXml.includes('aem-sdk-api') || pomXml.includes('aemanalyser-maven-plugin');
+  const hasCloudStructure =
+    modules.includes('ui.config') &&
+    modules.includes('all') &&
+    (modules.includes('dispatcher') ||
+      modules.includes('dispatcher.cloud') ||
+      fs.existsSync(path.join(projectRoot, 'dispatcher')) ||
+      fs.existsSync(path.join(projectRoot, 'dispatcher.cloud')));
+  const explicitlyLegacy = pomXml.includes('uber-jar') && !hasCloudApi;
+  return !explicitlyLegacy && (hasCloudApi || hasCloudStructure);
 }
 
-/**
- * Detect Java compiler target version from POM.
- */
 function detectJavaVersion(pomXml: string): string {
-  // Try maven.compiler.source/target properties
-  const sourceMatch = pomXml.match(/<source>([\d.]+)<\/source>/);
-  if (sourceMatch) { return sourceMatch[1]; }
-
-  // Try maven.compiler.release
-  const releaseMatch = pomXml.match(/<release>(\d+)<\/release>/);
-  if (releaseMatch) { return releaseMatch[1]; }
-
-  // Try java.version property
-  const javaVerMatch = pomXml.match(/<java\.version>([\d.]+)<\/java\.version>/);
-  if (javaVerMatch) { return javaVerMatch[1]; }
-
-  return '11'; // default for modern AEM
+  for (const pattern of [
+    /<maven\.compiler\.release>([\d.]+)<\/maven\.compiler\.release>/,
+    /<maven\.compiler\.source>([\d.]+)<\/maven\.compiler\.source>/,
+    /<release>([\d.]+)<\/release>/,
+    /<source>([\d.]+)<\/source>/,
+    /<java\.version>([\d.]+)<\/java\.version>/,
+  ]) {
+    const match = pomXml.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  return '11';
 }
 
 function detectJavaPackage(projectRoot: string, artifactId: string, groupId: string): string {
   const coreJava = path.join(projectRoot, 'core', 'src', 'main', 'java');
-  if (!fs.existsSync(coreJava)) {
-    return groupId ? `${groupId}.core.servlets` : `com.${artifactId.replace(/-/g, '.')}.core.servlets`;
+  const discovered = fs.existsSync(coreJava) ? walkForPackage(coreJava) : null;
+  if (discovered) {
+    const parts = discovered.split('.');
+    const coreIndex = parts.indexOf('core');
+    const base = coreIndex >= 0 ? parts.slice(0, coreIndex + 1).join('.') : discovered;
+    return base.endsWith('.servlets') ? base : `${base}.servlets`;
   }
-
-  // Walk the java source tree to find an existing package
-  const pkg = walkForPackage(coreJava, '');
-  if (pkg) {
-    return pkg;
-  }
-
-  return groupId ? `${groupId}.core.servlets` : `com.${artifactId.replace(/-/g, '.')}.core.servlets`;
+  return groupId
+    ? `${groupId}.core.servlets`
+    : `com.${artifactId.replace(/[^a-zA-Z0-9]+/g, '.')}.core.servlets`;
 }
 
-function walkForPackage(baseDir: string, prefix: string): string | null {
-  const entries = fs.readdirSync(path.join(baseDir, prefix), { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isFile() && entry.name.endsWith('.java')) {
-      // Read first line to get package declaration
-      const content = fs.readFileSync(path.join(baseDir, prefix, entry.name), 'utf-8');
-      const match = content.match(/^package\s+([\w.]+);/m);
-      if (match) {
-        // Return the base package (strip trailing .servlets, .models, etc.)
-        const pkg = match[1];
-        const parts = pkg.split('.');
-        // Find the "core" segment and return up to it
-        const coreIdx = parts.indexOf('core');
-        if (coreIdx >= 0) {
-          return parts.slice(0, coreIdx + 1).join('.') + '.servlets';
+function walkForPackage(directory: string): string | null {
+  try {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        const result = walkForPackage(absolute);
+        if (result) {
+          return result;
         }
-        return pkg;
+      } else if (entry.name.endsWith('.java')) {
+        const match = fs.readFileSync(absolute, 'utf-8').match(/^package\s+([\w.]+);/m);
+        if (match) {
+          return match[1];
+        }
       }
     }
-    if (entry.isDirectory() && !entry.name.startsWith('.')) {
-      const result = walkForPackage(baseDir, path.join(prefix, entry.name));
-      if (result) { return result; }
-    }
+  } catch {
+    return null;
   }
   return null;
 }

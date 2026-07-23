@@ -2,12 +2,11 @@
  * Sidebar tree data providers for the AEM Component Library activity bar.
  */
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { detectAllProjects, ProjectInfo } from '../scanner/projectDetector';
-import { scanComponents, ScannedComponent, ScanResult } from '../scanner/componentScanner';
+import type { ProjectInfo } from '../scanner/projectDetector';
+import { scanComponents, type ScannedComponent, type ScanResult } from '../scanner/componentScanner';
 import { configExists, loadConfig } from '../config/loader';
 import { getDefaults } from '../config/defaults';
-import { ComponentLibraryConfig } from '../config/schema';
+import { discoverWorkspaceProjects } from '../commands/projectSelection';
 
 // ─── Actions Tree ────────────────────────────────────────────────
 
@@ -24,6 +23,9 @@ export class ActionsProvider implements vscode.TreeDataProvider<ActionItem> {
       new ActionItem('Update Library', 'aemComponentLibrary.update', '$(refresh)'),
       new ActionItem('Preview', 'aemComponentLibrary.preview', '$(eye)'),
       new ActionItem('Scan Components', 'aemComponentLibrary.scan', '$(search)'),
+      new ActionItem('Run AEM Cloud Doctor', 'aemComponentLibrary.doctor', '$(shield)'),
+      new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)'),
+      new ActionItem('Export Support Bundle', 'aemComponentLibrary.exportSupportBundle', '$(export)'),
     ];
   }
 }
@@ -55,23 +57,18 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
       return element.children || [];
     }
 
-    const wsRoot = this.getWorkspaceRoot();
-    if (!wsRoot) {
+    if (!vscode.workspace.workspaceFolders?.length) {
       return [new ProjectItem('No workspace open', '', 'warning')];
     }
 
-    const projects = detectAllProjects(wsRoot);
+    const projects = discoverWorkspaceProjects();
     if (projects.length === 0) {
-      return [new ProjectItem('No AEM projects found', '', 'warning')];
+      return [new ProjectItem('No AEMaaCS projects found', '', 'warning')];
     }
 
-    return projects.map(p => {
+    return projects.map((p) => {
       const hasConfig = configExists(p.root);
-      const item = new ProjectItem(
-        p.artifactId,
-        p.root,
-        hasConfig ? 'pass' : 'circle-large-outline',
-      );
+      const item = new ProjectItem(p.artifactId, p.root, hasConfig ? 'pass' : 'circle-large-outline');
       item.description = hasConfig ? 'configured' : 'not configured';
       item.tooltip = `${p.groupId}:${p.artifactId}:${p.version}\n${p.root}\nModules: ${p.modules.join(', ')}`;
       item.children = [
@@ -89,10 +86,6 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
 
       return item;
     });
-  }
-
-  private getWorkspaceRoot(): string | undefined {
-    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 }
 
@@ -127,10 +120,7 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
       return element.children || [];
     }
 
-    const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!wsRoot) { return []; }
-
-    const projects = detectAllProjects(wsRoot);
+    const projects = discoverWorkspaceProjects();
     if (projects.length === 0) {
       return [new ComponentTreeItem('No AEM projects found', 'warning')];
     }
@@ -141,7 +131,7 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
     }
 
     // Multiple projects — show each as a top-level node
-    return projects.map(p => {
+    return projects.map((p) => {
       const item = new ComponentTreeItem(p.artifactId, 'project');
       item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
       item.children = this.buildComponentTree(p);
@@ -150,12 +140,9 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
   }
 
   private buildComponentTree(project: ProjectInfo): ComponentTreeItem[] {
-    const config = configExists(project.root)
-      ? loadConfig(project.root)
-      : getDefaults(project.artifactId);
-
     let result: ScanResult;
     try {
+      const config = configExists(project.root) ? loadConfig(project.root) : getDefaults(project.artifactId);
       result = scanComponents(project.root, config);
     } catch {
       return [new ComponentTreeItem('Scan failed', 'warning')];
@@ -167,7 +154,7 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
 
     // Summary node
     const summary = new ComponentTreeItem(
-      `${result.total} components · ${Object.keys(result.groups).length} groups`,
+      `${result.total} components · quality ${result.averageQualityScore}/100`,
       'info',
     );
 
@@ -179,19 +166,19 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
         const groupItem = new ComponentTreeItem(`${shortGroup} (${count})`, 'symbol-enum');
         groupItem.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
         groupItem.children = result.components
-          .filter(c => c.group === group)
+          .filter((c) => c.group === group)
           .sort((a, b) => a.title.localeCompare(b.title))
-          .map(c => this.buildComponentItem(c, project.root));
+          .map((c) => this.buildComponentItem(c));
         return groupItem;
       });
 
     return [summary, ...groupNodes];
   }
 
-  private buildComponentItem(comp: ScannedComponent, projectRoot: string): ComponentTreeItem {
+  private buildComponentItem(comp: ScannedComponent): ComponentTreeItem {
     const icon = comp.hasDialog ? 'symbol-class' : 'symbol-interface';
     const item = new ComponentTreeItem(comp.title, icon);
-    item.description = comp.name;
+    item.description = `${comp.quality.score}/100 · ${comp.status || 'unset'}`;
     item.tooltip = [
       comp.title,
       `Resource Type: ${comp.resourceType}`,
@@ -201,17 +188,19 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
       `README: ${comp.hasReadme ? '✓' : '—'}`,
       `Thumbnail: ${comp.hasThumbnail ? '✓' : '—'}`,
       comp.layoutFiles.length > 0 ? `Layouts: ${comp.layoutFiles.join(', ')}` : '',
-    ].filter(Boolean).join('\n');
+      `Owner: ${comp.owner || 'unowned'}`,
+      `Status: ${comp.status || 'unset'}`,
+      `Version: ${comp.version || 'unset'}`,
+      `Quality: ${comp.quality.score}/100 (${comp.quality.grade})`,
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     // Click to open .content.xml
-    const contentXml = path.join(
-      projectRoot, 'ui.apps', 'src', 'main', 'content', 'jcr_root',
-      'apps', comp.resourceType, '.content.xml',
-    );
     item.command = {
       command: 'vscode.open',
       title: 'Open Component',
-      arguments: [vscode.Uri.file(contentXml)],
+      arguments: [vscode.Uri.file(comp.sourcePath)],
     };
 
     // Children: metadata

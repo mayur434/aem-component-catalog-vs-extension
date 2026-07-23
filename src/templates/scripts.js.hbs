@@ -9,10 +9,10 @@
     "use strict";
 
     /* ------ helpers ------ */
-    function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+    function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
     function groupSlug(g) {
-        return g.replace(/^{{replace appId "-" "[-\\\\s]"}}\\s*[-\\u2013\\u2014]\\s*/i, "").trim().toLowerCase();
+        return g.replace(/^{{replace appId "-" "[-\\\\s]"}}\\s*[-\\u2013\\u2014]\\s*/i, "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
     }
 
     function groupLabel(g) {
@@ -40,9 +40,9 @@
     {{#if features.readme}}
     /* ------ Markdown to HTML ------ */
     function md2html(md) {
-        var h = md;
+        var h = esc(md);
         h = h.replace(/```(\w*)\n([\s\S]*?)```/g, function (_, lang, code) {
-            return '<pre><code class="language-' + lang + '">' + esc(code.trim()) + "</code></pre>";
+            return '<pre><code class="language-' + lang + '">' + code.trim() + "</code></pre>";
         });
         h = h.replace(/`([^`]+)`/g, "<code>$1</code>");
         h = h.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
@@ -117,7 +117,7 @@
                 var comp = list[j];
                 var href = pagePath + ".html/" + encodeURIComponent(comp.name);
                 var hasThumbnail = !!comp.thumbnailPath;
-                html += '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '">';
+                html += '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '">';
                 html += '<div class="pcl-card__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>';
                 if (hasThumbnail) {
                     html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" loading="lazy"/></div>';
@@ -138,6 +138,9 @@
                 if (comp.layouts && comp.layouts.length > 0) {
                     html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>' + comp.layouts.length + ' Layout' + (comp.layouts.length > 1 ? 's' : '') + '</span></span>';
                 }
+                {{#if features.qualityScore}}
+                html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--' + (comp.qualityScore >= 70 ? "yes" : "no") + '"></span>' + esc(comp.qualityScore) + '/100</span></span>';
+                {{/if}}
                 html += "</div></div></a>";
             }
             html += "</div></div>";
@@ -181,7 +184,9 @@
             var title = (card.getAttribute("data-title") || "").toLowerCase();
             var desc = (card.getAttribute("data-desc") || "").toLowerCase();
             var grp = card.getAttribute("data-group") || "";
-            var matchSearch = !query || title.indexOf(query) !== -1 || desc.indexOf(query) !== -1 || grp.toLowerCase().indexOf(query) !== -1;
+            var owner = (card.getAttribute("data-owner") || "").toLowerCase();
+            var status = (card.getAttribute("data-status") || "").toLowerCase();
+            var matchSearch = !query || title.indexOf(query) !== -1 || desc.indexOf(query) !== -1 || grp.toLowerCase().indexOf(query) !== -1 || owner.indexOf(query) !== -1 || status.indexOf(query) !== -1;
             var matchGroup = !group || grp === group;
             var show = matchSearch && matchGroup;
             card.style.display = show ? "" : "none";
@@ -218,7 +223,7 @@
         html += '<div class="pcl-detail__header">';
         html += '<span class="pcl-detail__header-badge">' + esc(groupLabel(comp.group)) + "</span>";
         html += '<h1 class="pcl-detail__title">' + esc(comp.title) + "</h1>";
-        html += '<p class="pcl-detail__desc">' + (comp.description || "A shared component from the " + groupLabel(comp.group) + " group.") + "</p>";
+        html += '<p class="pcl-detail__desc">' + esc(comp.description || "A shared component from the " + groupLabel(comp.group) + " group.") + "</p>";
         html += "</div>";
 
         html += '<div class="pcl-detail__grid">';
@@ -227,13 +232,21 @@
         html += infoRow("Resource Type", "<code>" + esc(comp.resourceType) + "</code>");
         html += infoRow("Super Type", comp.superType ? "<code>" + esc(comp.superType) + "</code>" : "\u2014");
         html += infoRow("Group", esc(comp.group));
+        html += infoRow("Owner", esc(comp.owner || "Unowned"));
+        html += infoRow("Status", esc(comp.status || "Unset"));
+        html += infoRow("Version", esc(comp.version || "Unset"));
         html += "</div>";
         html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Capabilities</h3>';
         html += infoRow("Container", statusDot(comp.isContainer));
         html += infoRow("Author Dialog", statusDot(comp.hasDialog));
+        html += infoRow("Dialog Fields", esc((comp.dialogFields || []).length));
+        html += infoRow("Design Dialog", statusDot(comp.hasDesignDialog));
         html += infoRow("Edit Config", statusDot(comp.hasEditConfig));
         html += infoRow("README", statusDot(!!comp.readmePath));
         html += infoRow("Layouts", statusDot(comp.layouts && comp.layouts.length > 0));
+        {{#if features.qualityScore}}
+        html += infoRow("Quality", "<strong>" + esc(comp.qualityScore) + "/100 (" + esc(comp.qualityGrade) + ")</strong>");
+        {{/if}}
         html += "</div></div>";
 
         {{#if features.lightbox}}
@@ -349,11 +362,12 @@
             lbImg.alt = images[idx].alt;
             lbCaption.textContent = images[idx].label || images[idx].alt;
             lightbox.classList.add("active");
+            lightbox.setAttribute("aria-hidden", "false");
             document.body.style.overflow = "hidden";
             lbPrev.style.display = current > 0 ? "" : "none";
             lbNext.style.display = current < images.length - 1 ? "" : "none";
         }
-        function close() { lightbox.classList.remove("active"); document.body.style.overflow = ""; }
+        function close() { lightbox.classList.remove("active"); lightbox.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; }
 
         items.forEach(function (item, idx) { item.addEventListener("click", function () { open(idx); }); });
         lbClose.addEventListener("click", close);
@@ -378,11 +392,7 @@
 
         var endpoint = pagePath + "/_jcr_content.components.json";
 
-        fetch(endpoint)
-            .then(function (r) {
-                if (!r.ok) throw new Error("Servlet returned " + r.status);
-                return r.json();
-            })
+        fetchAll(endpoint)
             .then(function (data) {
                 var suffix = getSuffix();
                 if (suffix) {
@@ -409,6 +419,27 @@
                 }
             });
     });
+
+    function fetchAll(endpoint) {
+        var components = [];
+        var first = null;
+        function next(offset) {
+            return fetch(endpoint + "?offset=" + offset + "&limit={{catalog.pageSize}}")
+                .then(function (response) {
+                    if (!response.ok) throw new Error("Servlet returned " + response.status);
+                    return response.json();
+                })
+                .then(function (page) {
+                    if (!first) first = page;
+                    components = components.concat(page.components || []);
+                    return page.hasMore ? next(offset + (page.components || []).length) : first;
+                });
+        }
+        return next(0).then(function (result) {
+            result.components = components;
+            return result;
+        });
+    }
 
     {{#if features.readme}}
     window.PCL = { md2html: md2html };

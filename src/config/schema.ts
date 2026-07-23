@@ -39,6 +39,9 @@ export interface FeaturesConfig {
   codeSnippets: boolean;
   readme: boolean;
   darkMode: boolean;
+  qualityScore: boolean;
+  dependencyGraph: boolean;
+  accessibility: boolean;
 }
 
 export interface OutputConfig {
@@ -64,7 +67,23 @@ export interface HeroConfig {
   footerText: string;
 }
 
+export interface CatalogRuntimeConfig {
+  /** Enterprise catalogs are provisioned on Author only. */
+  deploymentTarget: 'author';
+  cacheSeconds: number;
+  pageSize: number;
+}
+
+export interface GovernanceConfig {
+  policyFile: string;
+  ownerProperty: string;
+  statusProperty: string;
+  versionProperty: string;
+  tagsProperty: string;
+}
+
 export interface ComponentLibraryConfig {
+  schemaVersion: 2;
   appId: string;
   brand: BrandConfig;
   components: ComponentsConfig;
@@ -72,6 +91,6 @@ export interface ComponentLibraryConfig {
   output: OutputConfig;
   serviceUser: ServiceUserConfig;
   hero: HeroConfig;
-  /** Detected AEM project type — 'cloud' (AEMaaCS) or 'ams' (AEM 6.x). Auto-detected, user can override. */
-  projectType?: 'cloud' | 'ams';
+  catalog: CatalogRuntimeConfig;
+  governance: GovernanceConfig;
 }
