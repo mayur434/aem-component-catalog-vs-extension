@@ -17,16 +17,10 @@ export class ActionsProvider implements vscode.TreeDataProvider<ActionItem> {
 
   getChildren(): ActionItem[] {
     return [
-      new ActionItem('Create Micro-site', 'aemComponentLibrary.createMicrosite', '$(rocket)'),
-      new ActionItem('Open Dashboard', 'aemComponentLibrary.openDashboard', '$(dashboard)'),
-      new ActionItem('Initialize Config', 'aemComponentLibrary.init', '$(gear)'),
-      new ActionItem('Generate Library', 'aemComponentLibrary.generate', '$(play)'),
-      new ActionItem('Update Library', 'aemComponentLibrary.update', '$(refresh)'),
-      new ActionItem('Preview', 'aemComponentLibrary.preview', '$(eye)'),
-      new ActionItem('Scan Components', 'aemComponentLibrary.scan', '$(search)'),
-      new ActionItem('Run AEM Cloud Doctor', 'aemComponentLibrary.doctor', '$(shield)'),
+      new ActionItem('Configure & Generate Micro-site', 'aemComponentLibrary.configure', '$(rocket)'),
+      new ActionItem('Generate (no prompts)', 'aemComponentLibrary.generate', '$(play)'),
+      new ActionItem('Preview Changes', 'aemComponentLibrary.preview', '$(eye)'),
       new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)'),
-      new ActionItem('Export Support Bundle', 'aemComponentLibrary.exportSupportBundle', '$(export)'),
     ];
   }
 }

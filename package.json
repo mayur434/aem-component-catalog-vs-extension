@@ -27,6 +27,7 @@
     "workspaceContains:*/pom.xml",
     "onCommand:aemComponentLibrary.init",
     "onCommand:aemComponentLibrary.createMicrosite",
+    "onCommand:aemComponentLibrary.configure",
     "onCommand:aemComponentLibrary.generate",
     "onCommand:aemComponentLibrary.update",
     "onCommand:aemComponentLibrary.preview",
@@ -84,10 +85,15 @@
     "viewsWelcome": [
       {
         "view": "aemCL.actions",
-        "contents": "Enterprise catalog tools for AEM as a Cloud Service.\n[Create Micro-site](command:aemComponentLibrary.createMicrosite)\n[Open Dashboard](command:aemComponentLibrary.openDashboard)\n[Initialize Config](command:aemComponentLibrary.init)\n[Run Cloud Doctor](command:aemComponentLibrary.doctor)\n[Preview Generation](command:aemComponentLibrary.preview)\n[Generate Catalog](command:aemComponentLibrary.generate)"
+        "contents": "Generate an internal component-catalog micro-site.\n[Configure & Generate Micro-site](command:aemComponentLibrary.configure)\n[Generate (no prompts)](command:aemComponentLibrary.generate)\n[Preview Changes](command:aemComponentLibrary.preview)"
       }
     ],
     "commands": [
+      {
+        "command": "aemComponentLibrary.configure",
+        "title": "AEM Component Catalog: Configure & Generate Micro-site",
+        "icon": "$(rocket)"
+      },
       {
         "command": "aemComponentLibrary.createMicrosite",
         "title": "AEM Component Catalog: Create Micro-site",

@@ -1,13 +1,20 @@
 import * as vscode from 'vscode';
-import { configExists, loadConfig } from '../config/loader';
-import { runDoctor } from '../core/doctor';
-import { applyGenerationPlan, buildGenerationPlan } from '../core/generation';
+import { configExists, loadConfig, saveConfig } from '../config/loader';
+import { getDefaults } from '../config/defaults';
+import { applyGenerationPlan, buildGenerationPlan, type ApplyResult } from '../core/generation';
 import { requireTrustedWorkspace, selectAemCloudProject } from './projectSelection';
 
 export async function generateCommand(requestedRoot?: string): Promise<void> {
   await executeGeneration('Generate', requestedRoot);
 }
 
+/**
+ * Generate (or update) the component-catalog micro-site.
+ *
+ * This is the ONLY thing this command does: build the plan and write it. There is
+ * no Cloud Doctor gate, no preflight gate, and no dependency on anything else — a
+ * missing dispatcher, low component quality, or absent metadata never block it.
+ */
 export async function executeGeneration(
   action: 'Generate' | 'Update',
   requestedRoot?: string,
@@ -18,70 +25,60 @@ export async function executeGeneration(
     `Select the AEMaaCS project to ${action.toLowerCase()}`,
   );
   if (!project) return;
-  if (!configExists(project.root)) {
-    const choice = await vscode.window.showWarningMessage(
-      'No component catalog configuration was found.',
-      'Run Init',
-    );
-    if (choice === 'Run Init') await vscode.commands.executeCommand('aemComponentLibrary.init', project.root);
-    return;
-  }
 
   try {
-    const config = loadConfig(project.root);
-    const doctor = runDoctor(project.root, { config, policyFile: config.governance.policyFile });
-    if (!doctor.summary.passed) {
-      const choice = await vscode.window.showErrorMessage(
-        `AEM Cloud Doctor found ${doctor.summary.errors} blocking issue(s).`,
-        'Open Doctor Report',
-      );
-      if (choice === 'Open Doctor Report')
-        await vscode.commands.executeCommand('aemComponentLibrary.doctor', project.root);
-      return;
+    if (!configExists(project.root)) {
+      // No configuration yet: seed sensible defaults and keep going — never stop
+      // to make the user hand-edit JSON first.
+      const config = getDefaults(project.artifactId);
+      config.output.servletPackage = project.javaPackage;
+      config.hero.badge = project.artifactId;
+      config.hero.titlePrefix = project.artifactId;
+      saveConfig(project.root, config);
     }
 
+    const config = loadConfig(project.root);
     const plan = buildGenerationPlan(project.root, config);
     const changes = plan.items.filter((item) => item.status !== 'unchanged');
-    const conflicts = plan.items.filter((item) => item.status === 'conflict');
     if (!changes.length) {
-      vscode.window.showInformationMessage('Component catalog is already up to date.');
+      vscode.window.showInformationMessage('Component micro-site is already up to date.');
       return;
     }
+    const conflicts = plan.items.filter((item) => item.status === 'conflict');
     const choice = await vscode.window.showWarningMessage(
-      `${action} ${changes.length} artifact(s) transactionally${conflicts.length ? `; ${conflicts.length} conflict(s) will be preserved` : ''}?`,
-      {
-        modal: true,
-        detail: 'A rollback snapshot and an audit record will be created before any file is changed.',
-      },
-      'Apply Safe Changes',
-      'Preview',
+      `${action} ${changes.length} micro-site file(s)${conflicts.length ? `; ${conflicts.length} hand-edited file(s) will be preserved` : ''}?`,
+      { modal: true, detail: 'A rollback snapshot is written before any file changes.' },
+      `${action} Micro-site`,
     );
-    if (choice === 'Preview') {
-      await vscode.commands.executeCommand('aemComponentLibrary.preview', project.root);
-      return;
-    }
-    if (choice !== 'Apply Safe Changes') return;
+    if (choice !== `${action} Micro-site`) return;
 
-    const result = await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `${action} AEMaaCS component catalog`,
-        cancellable: true,
-      },
-      (_progress, token) =>
-        Promise.resolve(
-          applyGenerationPlan(plan, {
-            isCancelled: () => token.isCancellationRequested,
-            actor: 'vscode',
-          }),
-        ),
-    );
-    vscode.window.showInformationMessage(
-      `${action} complete · ${result.created} created · ${result.updated} updated · ${result.unchanged} unchanged · ${result.skipped} preserved.`,
-    );
+    const result = await runGeneration(project.root);
+    reportResult(action, result, config.output.contentPath);
   } catch (error) {
     vscode.window.showErrorMessage(`${action} failed: ${message(error)}`);
   }
+}
+
+/**
+ * Save-less generation primitive used by the visual config panel: build the plan
+ * from the on-disk config and apply it. No gating of any kind.
+ */
+export function runGeneration(projectRoot: string): ApplyResult {
+  const config = loadConfig(projectRoot);
+  const plan = buildGenerationPlan(projectRoot, config);
+  return applyGenerationPlan(plan, { overwriteConflicts: false, actor: 'vscode' });
+}
+
+export async function reportResult(
+  action: string,
+  result: ApplyResult,
+  contentPath: string,
+): Promise<void> {
+  const choice = await vscode.window.showInformationMessage(
+    `${action} complete · ${result.created} created · ${result.updated} updated · ${result.skipped} preserved. Deploy, then open ${contentPath}.html on Author.`,
+    'Copy Author Path',
+  );
+  if (choice === 'Copy Author Path') await vscode.env.clipboard.writeText(`${contentPath}.html`);
 }
 
 function message(error: unknown): string {
