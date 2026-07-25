@@ -88,6 +88,13 @@ export interface CatalogRuntimeConfig {
   pageSize: number;
   /** Quartz cron for the nightly component-usage index rebuild (Sling scheduler). */
   usageCron: string;
+  /**
+   * When true, the catalog listing only includes components with at least one usage on a
+   * currently-published page - a not-yet-adopted or draft-only component stays hidden until
+   * some page using it is actually live. When false (the safer default for a component
+   * library meant for discovery), every shipped component is listed regardless of usage.
+   */
+  requirePublishedUsage: boolean;
 }
 
 export interface GovernanceConfig {

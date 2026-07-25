@@ -92,6 +92,11 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       pageSize: 250,
       // Nightly at 02:00 — rebuild the in-memory "which pages use this component" index.
       usageCron: '0 0 2 * * ?',
+      // A component library's core purpose is discovery, so components stay visible even
+      // before anyone has used them yet — the catalog would otherwise hide its own newest
+      // additions until someone happens to publish a page with them. Projects that want a
+      // stricter "only what's live" view can opt in per project.
+      requirePublishedUsage: false,
     },
     governance: {
       policyFile: '.aem-catalog-policy.json',

@@ -87,6 +87,8 @@ describe('transactional generation', () => {
     expect(servlet).toContain('isStructural');
     expect(servlet).toContain('EXCLUDED_LEAF_NAMES.add("container")');
     expect(servlet).toContain('wcm/components/container');
+    // Discovery-first default: components with zero published usage still stay listed.
+    expect(servlet).toContain('REQUIRE_PUBLISHED_USAGE = false');
     const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
     expect(script).toContain('var h = esc(md)');
     expect(script).toContain('fetchAll(endpoint)');
@@ -133,6 +135,17 @@ describe('transactional generation', () => {
     )!.content;
     expect(pageDef).toContain('sling:resourceSuperType="core/wcm/components/page/v3/page"');
     expect(pageDef).not.toContain('sample-site/components/page"');
+  });
+
+  it('opts a project into hiding components with zero published usage', () => {
+    fixture = createAemCloudFixture();
+    const config = loadConfig(fixture.root);
+    config.catalog.requirePublishedUsage = true;
+    const plan = buildGenerationPlan(fixture.root, config);
+    const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!
+      .content;
+    expect(servlet).toContain('REQUIRE_PUBLISHED_USAGE = true');
+    expect(servlet).toContain('if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty())');
   });
 
   it('adds the missing clientlib filter root so the package still builds', () => {

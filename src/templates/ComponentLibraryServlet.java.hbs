@@ -68,6 +68,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     private static final int DEFAULT_PAGE_SIZE = {{pageSize}};
     private static final int MAX_PAGE_SIZE = 1000;
     private static final long CACHE_MILLIS = {{cacheSeconds}}L * 1000L;
+    private static final boolean REQUIRE_PUBLISHED_USAGE = {{requirePublishedUsage}};
     private static final Set<String> EXCLUDED_GROUPS = new HashSet<>();
     private static final Set<String> EXCLUDED_LEAF_NAMES = new HashSet<>();
     private static final List<String> EXCLUDED_SUPER_TOKENS = new ArrayList<>();
@@ -297,6 +298,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         component.put("status", status);
         component.put("version", version);
         List<Map<String, String>> usages = usageService.pagesFor(relativeName);
+        if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty()) {
+            return;
+        }
         component.put("usageCount", usages.size());
         if (!usages.isEmpty()) component.put("usages", usages);
         component.put("tags", readTags(properties));
