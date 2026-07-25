@@ -190,11 +190,14 @@ function inspectModules(root: string, project: ProjectInfo | null, add: FindingA
     (name) => modules.includes(name) && fs.existsSync(path.join(root, name)),
   );
   if (!dispatcherModule) {
+    // Dispatcher has its own rule (default: warning) so it never shares the
+    // blocking `aemaacs.modules` severity — a shared component library that is
+    // embedded into deployable sites legitimately ships no dispatcher module.
     add(
-      'aemaacs.modules',
+      'aemaacs.dispatcher',
       'warning',
       'Cloud Dispatcher module was not found',
-      'Cloud projects should include Dispatcher configuration so public access can be governed explicitly.',
+      'Deployable Cloud sites should include Dispatcher configuration so public access can be governed explicitly. A shared component library embedded into sites can ignore this.',
       'pom.xml',
     );
   }
