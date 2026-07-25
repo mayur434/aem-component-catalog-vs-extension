@@ -1,10 +1,23 @@
+import * as path from 'path';
 import type { ComponentLibraryConfig } from '../config/schema';
 import type { GeneratedArtifact } from '../core/artifact';
 import type { AemPaths } from '../utils/aemPaths';
 import { renderTemplate } from '../utils/templateEngine';
 
 export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): GeneratedArtifact[] {
+  const servletDir = path.dirname(paths.servletFile(config));
   return [
+    {
+      absolutePath: path.join(servletDir, 'ComponentUsageService.java'),
+      kind: 'java',
+      content: renderTemplate('ComponentUsageService.java.hbs', {
+        package: config.output.servletPackage,
+        componentRoot: config.components.root,
+        subServiceName: config.serviceUser.subServiceName,
+        catalogContentRoot: `/content/${config.appId}`,
+        usageCron: config.catalog.usageCron,
+      }),
+    },
     {
       absolutePath: paths.servletFile(config),
       kind: 'java',

@@ -80,6 +80,8 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       deploymentTarget: 'author',
       cacheSeconds: 60,
       pageSize: 250,
+      // Nightly at 02:00 — rebuild the in-memory "which pages use this component" index.
+      usageCron: '0 0 2 * * ?',
     },
     governance: {
       policyFile: '.aem-catalog-policy.json',

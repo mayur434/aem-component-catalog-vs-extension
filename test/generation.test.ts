@@ -13,11 +13,11 @@ describe('transactional generation', () => {
     fixture = createAemCloudFixture();
     const config = loadConfig(fixture.root);
     const initial = buildGenerationPlan(fixture.root, config);
-    expect(initial.items).toHaveLength(14);
+    expect(initial.items).toHaveLength(15);
     expect(initial.items.every((item) => item.status === 'create')).toBe(true);
 
     const firstResult = applyGenerationPlan(initial, { actor: 'test' });
-    expect(firstResult.created).toBe(14);
+    expect(firstResult.created).toBe(15);
     expect(firstResult.skipped).toBe(0);
     expect(fs.existsSync(path.join(fixture.root, '.aem-catalog-manifest.json'))).toBe(true);
 
@@ -65,11 +65,19 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => script.includes('allow jcr:read on /content/dam/sample-site/catalog')),
     ).toBe(true);
-    const servlet = plan.items.find((item) => item.kind === 'java')!.content;
+    // Component usage: nightly Sling job + service, servlet reads it, RepoInit grants /content read.
+    expect(
+      parsed.scripts.some((script) => script.includes('allow jcr:read on /content')),
+    ).toBe(true);
+    const usageService = plan.items.find((item) => item.relativePath.endsWith('ComponentUsageService.java'))!.content;
+    expect(usageService).toContain('scheduler.expression=0 0 2 * * ?');
+    expect(usageService).toContain('implements Runnable');
+    const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!.content;
     expect(servlet).toContain('getRunModes().contains("author")');
     expect(servlet).toContain('ResourceChangeListener');
     expect(servlet).toContain('ASSET_ROOT = "/content/dam/sample-site/catalog"');
     expect(servlet).toContain('damThumbnail');
+    expect(servlet).toContain('usageService.pagesFor');
     const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
     expect(script).toContain('var h = esc(md)');
     expect(script).toContain('fetchAll(endpoint)');

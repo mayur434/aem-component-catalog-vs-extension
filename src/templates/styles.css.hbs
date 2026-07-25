@@ -1409,3 +1409,17 @@
 .pcl-carousel__dots { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 .pcl-carousel__dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--pcl-border); cursor: pointer; padding: 0; transition: var(--pcl-transition); }
 .pcl-carousel__dot.is-active { background: var(--pcl-primary); transform: scale(1.25); }
+
+/* Component usage — card chip + detail "Where it's used" */
+.pcl-usage { color: var(--pcl-primary); font-weight: 600; }
+.pcl-usage svg { color: var(--pcl-primary); }
+.pcl-usage--none { color: var(--pcl-text-muted); font-weight: 500; }
+.pcl-usage--none svg { color: var(--pcl-text-muted); }
+.pcl-usage-card { margin-top: 28px; padding: 22px 24px; background: var(--pcl-surface); border: 1px solid var(--pcl-border-light); border-radius: var(--pcl-radius-lg); box-shadow: var(--pcl-shadow-sm); }
+.pcl-usage-card__title { font-size: 16px; font-weight: 700; color: var(--pcl-text); margin: 0 0 14px; display: flex; align-items: center; gap: 10px; }
+.pcl-usage-card__count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; padding: 0 8px; background: var(--pcl-primary); color: #fff; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.pcl-usage-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.pcl-usage-list__item a { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; background: var(--pcl-surface-alt); border: 1px solid var(--pcl-border-light); border-radius: var(--pcl-radius-sm); text-decoration: none; transition: var(--pcl-transition); }
+.pcl-usage-list__item a:hover { border-color: var(--pcl-accent); background: var(--pcl-surface-hover); }
+.pcl-usage-list__title { font-size: 14px; font-weight: 600; color: var(--pcl-text); }
+.pcl-usage-list__path { font-size: 12px; color: var(--pcl-text-muted); font-family: var(--pcl-font-mono); word-break: break-all; }

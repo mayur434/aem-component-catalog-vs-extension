@@ -205,6 +205,9 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   ) {
     errors.push('catalog.pageSize must be an integer between 25 and 1000');
   }
+  if (!config.catalog.usageCron || !/^[-0-9*?/,\s]+$/.test(config.catalog.usageCron)) {
+    errors.push('catalog.usageCron must be a valid quartz cron expression');
+  }
 
   return errors;
 }

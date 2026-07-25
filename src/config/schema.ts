@@ -76,6 +76,8 @@ export interface CatalogRuntimeConfig {
   deploymentTarget: 'author';
   cacheSeconds: number;
   pageSize: number;
+  /** Quartz cron for the nightly component-usage index rebuild (Sling scheduler). */
+  usageCron: string;
 }
 
 export interface GovernanceConfig {

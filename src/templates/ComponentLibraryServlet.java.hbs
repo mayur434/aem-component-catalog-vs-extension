@@ -93,6 +93,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     @Reference
     private transient SlingSettingsService slingSettings;
 
+    @Reference
+    private transient ComponentUsageService usageService;
+
     private transient volatile CacheEntry cache;
 
     @Override
@@ -118,6 +121,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             result.put("limit", limit);
             result.put("hasMore", to < catalog.components.size());
             result.put("averageQualityScore", catalog.averageQualityScore);
+            result.put("usageBuiltAt", usageService.builtAt());
             response.getWriter().write(GSON.toJson(result));
         } catch (LoginException e) {
             LOG.error("Unable to obtain the component catalog service resolver", e);
@@ -163,8 +167,14 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             List<Map<String, Object>> components = new ArrayList<>();
             Map<String, Integer> groups = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             collectComponents(root, components, groups);
-            components.sort((left, right) -> String.valueOf(left.get("title"))
-                    .compareToIgnoreCase(String.valueOf(right.get("title"))));
+            // Rank the most-used components first; ties fall back to title order.
+            components.sort((left, right) -> {
+                int byUsage = Integer.compare(
+                        ((Number) right.getOrDefault("usageCount", 0)).intValue(),
+                        ((Number) left.getOrDefault("usageCount", 0)).intValue());
+                if (byUsage != 0) return byUsage;
+                return String.valueOf(left.get("title")).compareToIgnoreCase(String.valueOf(right.get("title")));
+            });
             Map<String, Integer> categories = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             int totalScore = 0;
             for (Map<String, Object> component : components) {
@@ -253,6 +263,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         component.put("owner", owner);
         component.put("status", status);
         component.put("version", version);
+        List<Map<String, String>> usages = usageService.pagesFor(relativeName);
+        component.put("usageCount", usages.size());
+        if (!usages.isEmpty()) component.put("usages", usages);
         component.put("tags", readTags(properties));
         component.put("qualityScore", score);
         component.put("qualityGrade", qualityGrade(score));
