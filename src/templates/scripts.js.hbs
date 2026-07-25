@@ -135,7 +135,33 @@
         renderMetrics(data);
         {{/if}}
 
-        // Group components: Category (website) -> Sub Category -> [components].
+        renderSections(data, getSortMode());
+
+        var searchInput = document.querySelector(".pcl-search__input");
+        if (searchInput) {
+            searchInput.addEventListener("input", function () {
+                applyFilters(searchInput.value, getActiveFilter(), getFacetState());
+            });
+        }
+        bindPills(searchInput);
+        bindFacets(searchInput);
+        bindSort(searchInput, data);
+    }
+
+    /* ------ sorting (default: usage high -> low) ------ */
+    function usageOf(c) { return c.usageCount || 0; }
+    function getSortMode() { var el = document.getElementById("pcl-sort"); return el ? el.value : "usage"; }
+    function cardCompare(mode) {
+        return function (a, b) {
+            if (mode === "usage") { var d = usageOf(b) - usageOf(a); if (d) return d; }
+            return String(a.title || "").localeCompare(String(b.title || ""));
+        };
+    }
+    function sumUsage(list) { var s = 0; for (var i = 0; i < list.length; i++) s += usageOf(list[i]); return s; }
+
+    function renderSections(data, mode) {
+        var pagePath = getPagePath();
+        var main = document.getElementById("pcl-main");
         var byCategory = {};
         var components = data.components;
         for (var i = 0; i < components.length; i++) {
@@ -146,20 +172,29 @@
             if (!byCategory[cat][sub]) byCategory[cat][sub] = [];
             byCategory[cat][sub].push(c);
         }
+        var cats = Object.keys(byCategory);
+        var catUsage = {};
+        for (var a = 0; a < cats.length; a++) {
+            var acc = 0, subsA = byCategory[cats[a]];
+            for (var kk in subsA) { if (subsA.hasOwnProperty(kk)) acc += sumUsage(subsA[kk]); }
+            catUsage[cats[a]] = acc;
+        }
+        if (mode === "usage") {
+            cats.sort(function (x, y) { var d = catUsage[y] - catUsage[x]; return d || x.localeCompare(y); });
+        } else { cats.sort(); }
 
         var html = "";
-        var sortedCats = Object.keys(byCategory).sort();
-        for (var ck = 0; ck < sortedCats.length; ck++) {
-            var category = sortedCats[ck];
+        for (var ck = 0; ck < cats.length; ck++) {
+            var category = cats[ck];
             var subs = byCategory[category];
+            var subNames = orderSubs(subs, mode);
             var catTotal = 0;
-            var sortedSubs = Object.keys(subs).sort();
-            for (var s0 = 0; s0 < sortedSubs.length; s0++) catTotal += subs[sortedSubs[s0]].length;
+            for (var s0 = 0; s0 < subNames.length; s0++) catTotal += subs[subNames[s0]].length;
             html += '<section class="pcl-category-section" data-category="' + esc(category) + '">';
             html += '<h2 class="pcl-section-title">' + esc(category) + ' <span class="pcl-section-title__count">' + catTotal + '</span></h2>';
-            for (var sk = 0; sk < sortedSubs.length; sk++) {
-                var sub = sortedSubs[sk];
-                var list = subs[sub];
+            for (var sk = 0; sk < subNames.length; sk++) {
+                var sub = subNames[sk];
+                var list = subs[sub].slice().sort(cardCompare(mode));
                 html += '<div class="pcl-subcategory-section" data-subcategory="' + esc(sub) + '">';
                 html += '<h3 class="pcl-subcategory-title">' + esc(subLabel(sub)) + ' <span class="pcl-subcategory-title__count">' + list.length + '</span></h3>';
                 html += '<div class="pcl-grid">';
@@ -170,18 +205,25 @@
             }
             html += "</section>";
         }
-
         html += '<div class="pcl-empty" style="display:none;"><svg class="pcl-empty__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg><h3 class="pcl-empty__title">No components found</h3><p class="pcl-empty__desc">Try adjusting your search or filter criteria.</p></div>';
         main.innerHTML = html;
+    }
 
-        var searchInput = document.querySelector(".pcl-search__input");
-        if (searchInput) {
-            searchInput.addEventListener("input", function () {
-                applyFilters(searchInput.value, getActiveFilter(), getFacetState());
-            });
-        }
-        bindPills(searchInput);
-        bindFacets(searchInput);
+    function orderSubs(subs, mode) {
+        var names = Object.keys(subs);
+        if (mode === "usage") {
+            names.sort(function (x, y) { var d = sumUsage(subs[y]) - sumUsage(subs[x]); return d || x.localeCompare(y); });
+        } else { names.sort(); }
+        return names;
+    }
+
+    function bindSort(searchInput, data) {
+        var el = document.getElementById("pcl-sort");
+        if (!el) return;
+        el.addEventListener("change", function () {
+            renderSections(data, el.value);
+            applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
+        });
     }
 
     /* ------ facets (Status / Owner / Quality) ------ */
