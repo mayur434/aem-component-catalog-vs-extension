@@ -76,8 +76,10 @@ describe('transactional generation', () => {
     );
     applyGenerationPlan(buildGenerationPlan(fixture.root, loadConfig(fixture.root)), { actor: 'test' });
     const filter = fs.readFileSync(filterFile, 'utf-8');
-    expect(filter).toContain('/apps/sample-site/clientlibs/clientlib-componentlibrary');
-    // The page component is already covered by the components rule → not duplicated.
+    // Root is a direct child of /apps/<appId> (validator-safe for application packages).
+    expect(filter).toContain('<filter root="/apps/sample-site/clientlibs"/>');
+    // Not the deeper path (its ancestor would be undefined), nor a duplicate page-component rule.
+    expect(filter).not.toContain('/apps/sample-site/clientlibs/clientlib-componentlibrary');
     expect(filter).not.toContain('/apps/sample-site/components/page/componentlibrary');
   });
 });

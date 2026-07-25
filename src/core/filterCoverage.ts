@@ -17,11 +17,16 @@ export function ensureFilterCoverage(projectRoot: string): void {
   try {
     const config = loadConfig(projectRoot);
     paths = resolveAemPaths(projectRoot);
-    patchFilter(vaultFilter(paths.uiApps), [
-      jcrPathOf(paths.pageComponentDir(config), paths.uiApps),
-      jcrPathOf(paths.clientlibDir(config), paths.uiApps),
+    patchFilter(
+      vaultFilter(paths.uiApps),
+      unique([
+        topLevelRoot(jcrPathOf(paths.pageComponentDir(config), paths.uiApps)),
+        topLevelRoot(jcrPathOf(paths.clientlibDir(config), paths.uiApps)),
+      ]),
+    );
+    patchFilter(vaultFilter(paths.uiConfig), [
+      topLevelRoot(jcrPathOf(paths.osgiConfigDir(config), paths.uiConfig)),
     ]);
-    patchFilter(vaultFilter(paths.uiConfig), [jcrPathOf(paths.osgiConfigDir(config), paths.uiConfig)]);
   } catch {
     // Best-effort: never let filter maintenance break generation.
   }
@@ -35,6 +40,21 @@ function jcrPathOf(absoluteDir: string, moduleRoot: string): string {
   const jcrRoot = path.join(moduleRoot, 'src', 'main', 'content', 'jcr_root');
   const relative = path.relative(jcrRoot, absoluteDir).split(path.sep).join('/');
   return `/${relative}`;
+}
+
+/**
+ * Reduce a deep node path to a filter root one level under /apps/<appId>
+ * (e.g. /apps/x/clientlibs/clientlib-componentlibrary -> /apps/x/clientlibs).
+ * `application`-type packages reject filter roots whose ancestor node isn't a
+ * declared root, so roots must be direct children of the repository-structure
+ * root /apps/<appId>, exactly like the components filter.
+ */
+function topLevelRoot(jcrPath: string): string {
+  return `/${jcrPath.split('/').filter(Boolean).slice(0, 3).join('/')}`;
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function patchFilter(file: string, requiredRoots: string[]): void {
