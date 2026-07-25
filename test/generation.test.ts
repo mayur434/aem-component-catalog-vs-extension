@@ -74,9 +74,11 @@ describe('transactional generation', () => {
     expect(usageService).toContain('sling:resourceSuperType');
     expect(usageService).toContain('libraryRelFor');
     // Only published pages count as usage; drafts never replicated must not inflate counts.
+    // Uses AEM's standard ReplicationStatus adaptable (not a raw cq:lastReplicationAction read),
+    // which is correct on author or publish alike - no run-mode gating needed.
     expect(usageService).toContain('isPublished');
-    expect(usageService).toContain('cq:lastReplicationAction');
-    expect(usageService).toContain('"Activate".equals(action)');
+    expect(usageService).toContain('import com.day.cq.replication.ReplicationStatus;');
+    expect(usageService).toContain('status.isActivated()');
     const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!.content;
     expect(servlet).toContain('getRunModes().contains("author")');
     expect(servlet).toContain('ResourceChangeListener');
