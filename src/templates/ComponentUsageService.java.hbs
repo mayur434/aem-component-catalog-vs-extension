@@ -88,6 +88,8 @@ public final class ComponentUsageService implements Runnable {
             Set<String> componentNames = collectComponentNames(resolver);
             Map<String, LinkedHashMap<String, Map<String, String>>> accumulator =
                     new HashMap<String, LinkedHashMap<String, Map<String, String>>>();
+            // resourceType -> library component rel (or null), memoised so each proxy is resolved once.
+            Map<String, String> relCache = new HashMap<String, String>();
 
             String statement = "SELECT n.[jcr:path] FROM [nt:base] AS n "
                     + "WHERE ISDESCENDANTNODE(n, '/content') AND n.[sling:resourceType] LIKE '%" + SEGMENT + "%'";
@@ -98,13 +100,10 @@ public final class ComponentUsageService implements Runnable {
                 if (resourceType == null) {
                     continue;
                 }
-                int index = resourceType.indexOf(SEGMENT);
-                if (index < 0) {
-                    continue;
-                }
-                // Maps a direct usage or a site proxy (…/components/<rel>) to the library component.
-                String componentName = resourceType.substring(index + SEGMENT.length());
-                if (!componentNames.contains(componentName)) {
+                // Sites author project-local proxies whose sling:resourceSuperType points at the
+                // library component; resolve the type (direct hit or one-level proxy) to that library rel.
+                String componentName = libraryRelFor(resolver, resourceType, componentNames, relCache);
+                if (componentName == null) {
                     continue;
                 }
                 Resource page = pageOf(resource);
@@ -150,6 +149,66 @@ public final class ComponentUsageService implements Runnable {
             }
             collectComponentNames(child, names);
         }
+    }
+
+    /**
+     * Resolves a page's {@code sling:resourceType} to the library component it renders, either
+     * directly or through a single level of site-proxy indirection (the proxy's
+     * {@code sling:resourceSuperType} points into the library). Returns the library rel path, or
+     * {@code null} when the type is unrelated to the catalog. Results are memoised per resolver run.
+     */
+    private String libraryRelFor(ResourceResolver resolver, String resourceType,
+            Set<String> componentNames, Map<String, String> cache) {
+        if (cache.containsKey(resourceType)) {
+            return cache.get(resourceType);
+        }
+        String rel = computeLibraryRel(resolver, resourceType, componentNames);
+        cache.put(resourceType, rel);
+        return rel;
+    }
+
+    private String computeLibraryRel(ResourceResolver resolver, String resourceType,
+            Set<String> componentNames) {
+        // 1) Direct: the resource type already is a library component.
+        String direct = relUnderComponentsRoot(toAbsoluteType(resourceType));
+        if (direct != null && componentNames.contains(direct)) {
+            return direct;
+        }
+        // 2) One-level proxy: the site component supers a library component.
+        Resource component = resolveType(resolver, resourceType);
+        if (component != null) {
+            String superType = component.getValueMap().get("sling:resourceSuperType", String.class);
+            String superRel = relUnderComponentsRoot(toAbsoluteType(superType));
+            if (superRel != null && componentNames.contains(superRel)) {
+                return superRel;
+            }
+        }
+        return null;
+    }
+
+    private Resource resolveType(ResourceResolver resolver, String resourceType) {
+        if (resourceType == null || resourceType.isEmpty()) {
+            return null;
+        }
+        if (resourceType.charAt(0) == '/') {
+            return resolver.getResource(resourceType);
+        }
+        Resource resource = resolver.getResource("/apps/" + resourceType);
+        return resource != null ? resource : resolver.getResource("/libs/" + resourceType);
+    }
+
+    private String toAbsoluteType(String resourceType) {
+        if (resourceType == null || resourceType.isEmpty()) {
+            return null;
+        }
+        return resourceType.charAt(0) == '/' ? resourceType : "/apps/" + resourceType;
+    }
+
+    private String relUnderComponentsRoot(String absoluteType) {
+        if (absoluteType == null || !absoluteType.startsWith(COMPONENTS_ROOT + "/")) {
+            return null;
+        }
+        return absoluteType.substring(COMPONENTS_ROOT.length() + 1);
     }
 
     private Resource pageOf(Resource resource) {

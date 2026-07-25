@@ -50,12 +50,10 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => script.includes('forced path system/cq:services/sample-site')),
     ).toBe(true);
-    // The service user must read the components node itself (not just its descendants),
-    // or the servlet's getResource(root) returns null -> 500.
+    // The service user reads all of /apps: the servlet needs the library components node, and
+    // the usage job must resolve each site proxy's sling:resourceSuperType under /apps/<site>.
     expect(
-      parsed.scripts.some((script) =>
-        script.includes('allow jcr:read on /apps restriction(rep:glob,/sample-site/components)'),
-      ),
+      parsed.scripts.some((script) => /allow jcr:read on \/apps\b(?!\/)/.test(script)),
     ).toBe(true);
     expect(repoinit.relativePath).toContain('config.author');
     // DAM-managed images: servlet reads /content/dam/<app>/catalog, RepoInit provisions it.
@@ -72,6 +70,9 @@ describe('transactional generation', () => {
     const usageService = plan.items.find((item) => item.relativePath.endsWith('ComponentUsageService.java'))!.content;
     expect(usageService).toContain('scheduler.expression=0 0 2 * * ?');
     expect(usageService).toContain('implements Runnable');
+    // Sites use project proxies; usage must follow one level of sling:resourceSuperType.
+    expect(usageService).toContain('sling:resourceSuperType');
+    expect(usageService).toContain('libraryRelFor');
     const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!.content;
     expect(servlet).toContain('getRunModes().contains("author")');
     expect(servlet).toContain('ResourceChangeListener');
