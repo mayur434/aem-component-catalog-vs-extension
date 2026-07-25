@@ -50,6 +50,8 @@ export interface OutputConfig {
   contentPath: string;
   pageTitle: string;
   pageResourceType: string;
+  /** The page component the catalog page extends; defaults to the WCM core page. */
+  pageSuperType: string;
 }
 
 export interface ServiceUserConfig {

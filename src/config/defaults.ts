@@ -53,6 +53,9 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       contentPath: `/content/${appId}/component-library`,
       pageTitle: 'Component Catalog',
       pageResourceType: `${appId}/components/page/componentlibrary`,
+      // Extend the WCM core page (always present on AEMaaCS) so the catalog renders
+      // even in a component library that has no base page component of its own.
+      pageSuperType: 'core/wcm/components/page/v3/page',
     },
     serviceUser: {
       name: `${appId}-service`,

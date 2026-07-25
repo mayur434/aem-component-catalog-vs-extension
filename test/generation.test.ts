@@ -64,6 +64,12 @@ describe('transactional generation', () => {
     const styles = plan.items.find((item) => item.relativePath.endsWith('styles.css'))!.content;
     expect(styles).toContain('.pcl-facet__select');
     expect(styles).toContain('.pcl-metric');
+    // The catalog page must extend the WCM core page so it renders in any project.
+    const pageDef = plan.items.find((item) =>
+      item.relativePath.endsWith('page/componentlibrary/.content.xml'),
+    )!.content;
+    expect(pageDef).toContain('sling:resourceSuperType="core/wcm/components/page/v3/page"');
+    expect(pageDef).not.toContain('sample-site/components/page"');
   });
 
   it('adds the missing clientlib filter root so the package still builds', () => {

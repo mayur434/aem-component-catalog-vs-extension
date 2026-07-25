@@ -10,6 +10,7 @@ export function planPageComponent(config: ComponentLibraryConfig, paths: AemPath
     artifact(path.join(directory, '.content.xml'), 'componentDef.content.xml.hbs', {
       appId: config.appId,
       pageTitle: config.output.pageTitle,
+      pageSuperType: config.output.pageSuperType,
     }),
     artifact(path.join(directory, 'body.html'), 'body.html.hbs', {
       appId: config.appId,

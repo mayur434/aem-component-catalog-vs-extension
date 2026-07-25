@@ -94,6 +94,12 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
     errors.push('output.pageResourceType must be a safe relative resource type');
   }
 
+  if (!config.output.pageSuperType || !config.output.pageSuperType.trim()) {
+    errors.push('output.pageSuperType is required');
+  } else if (!/^[a-z0-9][a-z0-9/_-]*$/.test(config.output.pageSuperType)) {
+    errors.push('output.pageSuperType must be a safe relative resource type');
+  }
+
   if (!config.output.clientlibCategory || !config.output.clientlibCategory.trim()) {
     errors.push('output.clientlibCategory is required');
   } else if (!/^[a-zA-Z0-9._-]+$/.test(config.output.clientlibCategory)) {
