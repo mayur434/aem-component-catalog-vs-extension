@@ -16,7 +16,6 @@ export interface EnterprisePolicy {
 const recommendedRules: Record<string, PolicyLevel> = {
   'aemaacs.project': 'error',
   'aemaacs.modules': 'error',
-  'aemaacs.dispatcher': 'warning',
   'aemaacs.package-separation': 'error',
   'aemaacs.all-embeds': 'warning',
   'aemaacs.repoinit': 'error',

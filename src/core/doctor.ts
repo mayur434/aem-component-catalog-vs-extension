@@ -186,21 +186,8 @@ function inspectModules(root: string, project: ProjectInfo | null, add: FindingA
       );
     }
   }
-  const dispatcherModule = ['dispatcher', 'dispatcher.cloud'].some(
-    (name) => modules.includes(name) && fs.existsSync(path.join(root, name)),
-  );
-  if (!dispatcherModule) {
-    // Dispatcher has its own rule (default: warning) so it never shares the
-    // blocking `aemaacs.modules` severity — a shared component library that is
-    // embedded into deployable sites legitimately ships no dispatcher module.
-    add(
-      'aemaacs.dispatcher',
-      'warning',
-      'Cloud Dispatcher module was not found',
-      'Deployable Cloud sites should include Dispatcher configuration so public access can be governed explicitly. A shared component library embedded into sites can ignore this.',
-      'pom.xml',
-    );
-  }
+  // No Dispatcher check: this tool only generates an author-only component-catalog
+  // micro-site and never touches Dispatcher, so its presence or absence is irrelevant.
 }
 
 function inspectPackageSeparation(root: string, add: FindingAdder): void {
