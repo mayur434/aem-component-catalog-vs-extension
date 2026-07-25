@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { initCommand } from './commands/init';
 import { openConfigPanel } from './webview/configPanel';
 import { generateCommand } from './commands/generate';
+import { deployLocalCommand } from './commands/deploy';
 import { updateCommand } from './commands/update';
 import { previewCommand } from './commands/preview';
 import { scanCommand } from './commands/scan';
@@ -43,6 +44,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('aemComponentLibrary.configure', () =>
       openConfigPanel(context, refreshAll),
     ),
+    vscode.commands.registerCommand('aemComponentLibrary.deployLocal', async (projectRoot?: string) => {
+      await deployLocalCommand(projectRoot);
+      refreshAll();
+    }),
     vscode.commands.registerCommand('aemComponentLibrary.generate', async (projectRoot?: string) => {
       await generateCommand(projectRoot);
       refreshAll();

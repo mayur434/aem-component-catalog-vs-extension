@@ -19,6 +19,7 @@ export class ActionsProvider implements vscode.TreeDataProvider<ActionItem> {
     return [
       new ActionItem('Configure & Generate Micro-site', 'aemComponentLibrary.configure', '$(rocket)'),
       new ActionItem('Generate (no prompts)', 'aemComponentLibrary.generate', '$(play)'),
+      new ActionItem('Deploy to Local AEM', 'aemComponentLibrary.deployLocal', '$(cloud-upload)'),
       new ActionItem('Preview Changes', 'aemComponentLibrary.preview', '$(eye)'),
       new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)'),
     ];

@@ -28,6 +28,7 @@
     "onCommand:aemComponentLibrary.init",
     "onCommand:aemComponentLibrary.createMicrosite",
     "onCommand:aemComponentLibrary.configure",
+    "onCommand:aemComponentLibrary.deployLocal",
     "onCommand:aemComponentLibrary.generate",
     "onCommand:aemComponentLibrary.update",
     "onCommand:aemComponentLibrary.preview",
@@ -85,7 +86,7 @@
     "viewsWelcome": [
       {
         "view": "aemCL.actions",
-        "contents": "Generate an internal component-catalog micro-site.\n[Configure & Generate Micro-site](command:aemComponentLibrary.configure)\n[Generate (no prompts)](command:aemComponentLibrary.generate)\n[Preview Changes](command:aemComponentLibrary.preview)"
+        "contents": "Generate an internal component-catalog micro-site.\n[Configure & Generate Micro-site](command:aemComponentLibrary.configure)\n[Generate (no prompts)](command:aemComponentLibrary.generate)\n[Deploy to Local AEM](command:aemComponentLibrary.deployLocal)\n[Preview Changes](command:aemComponentLibrary.preview)"
       }
     ],
     "commands": [
@@ -93,6 +94,11 @@
         "command": "aemComponentLibrary.configure",
         "title": "AEM Component Catalog: Configure & Generate Micro-site",
         "icon": "$(rocket)"
+      },
+      {
+        "command": "aemComponentLibrary.deployLocal",
+        "title": "AEM Component Catalog: Deploy to Local AEM (core, ui.apps, ui.config)",
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "aemComponentLibrary.createMicrosite",

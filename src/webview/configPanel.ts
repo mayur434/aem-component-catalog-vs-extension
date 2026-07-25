@@ -15,6 +15,7 @@ import { configExists, loadConfig, saveConfig } from '../config/loader';
 import { getDefaults } from '../config/defaults';
 import type { ComponentLibraryConfig } from '../config/schema';
 import { runGeneration } from '../commands/generate';
+import { deployLocal } from '../commands/deploy';
 import { discoverWorkspaceProjects } from '../commands/projectSelection';
 import type { ProjectInfo } from '../scanner/projectDetector';
 
@@ -77,6 +78,7 @@ export function openConfigPanel(context: vscode.ExtensionContext, onDone?: () =>
       if (!message) return;
       if (message.type === 'generate') await handleGenerate(active, message, onDone);
       else if (message.type === 'detectTheme') handleDetect(active, message);
+      else if (message.type === 'deploy') await handleDeploy(active, message);
     },
     undefined,
     context.subscriptions,
@@ -88,6 +90,16 @@ function handleDetect(active: vscode.WebviewPanel, message: Record<string, unkno
   const project = buildProjects().find((candidate) => candidate.id === message.projectId);
   const colors = project ? detectThemeColors(project.root) : [];
   active.webview.postMessage({ type: 'detected', colors });
+}
+
+async function handleDeploy(active: vscode.WebviewPanel, message: Record<string, unknown>): Promise<void> {
+  const project = buildProjects().find((candidate) => candidate.id === message.projectId);
+  if (!project) {
+    active.webview.postMessage({ type: 'deployStarted', ok: false });
+    return;
+  }
+  active.webview.postMessage({ type: 'deployStarted', ok: true });
+  await deployLocal(project.root); // confirm modal + start/finish toasts live here
 }
 
 async function handleGenerate(
@@ -119,6 +131,9 @@ async function handleGenerate(
       skipped: result.skipped,
       authorPath: `${config.output.contentPath}.html`,
     });
+    vscode.window.showInformationMessage(
+      `✓ Micro-site generated · ${result.created} created · ${result.updated} updated · ${result.skipped} preserved.`,
+    );
     onDone?.();
   } catch (error) {
     active.webview.postMessage({
@@ -366,7 +381,10 @@ function render(): string {
 
     <div class="footer">
       <div id="status" class="status"></div>
-      <button id="generate" class="primary">Generate Micro-site</button>
+      <div class="footer-actions">
+        <button id="deploy" class="ghost">Deploy to Local AEM</button>
+        <button id="generate" class="primary">Generate Micro-site</button>
+      </div>
     </div>
   </div>
 </div>
@@ -415,7 +433,8 @@ select{width:100%;padding:8px 10px;border-radius:6px;background:var(--vscode-dro
 .toggle .meta small{color:var(--vscode-descriptionForeground)}
 .ghost{padding:6px 12px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.4));border-radius:6px;background:transparent;color:var(--vscode-foreground);cursor:pointer;font:inherit;font-size:12px}
 .ghost:hover{border-color:var(--vscode-focusBorder)}
-.footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0 0}
+.footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0 0;background:var(--vscode-editor-background)}
+.footer-actions{display:flex;gap:10px;align-items:center}
 .status{font-size:12px;color:var(--vscode-descriptionForeground)}
 .status.ok{color:var(--vscode-testing-iconPassed,#4CAF50)}
 .status.err{color:var(--vscode-errorForeground,#f14c4c)}
@@ -474,11 +493,13 @@ function init(){
     const st=$('status');st.className='status';st.textContent='Generating…';$('generate').disabled=true;
     vscode.postMessage({type:'generate',projectId:cur.id,primary:cur.selections.primary,accent:cur.selections.accent,background:cur.selections.background,title:cur.selections.title,description:cur.selections.description,subCategoryProperty:cur.selections.subCategoryProperty,features:cur.selections.features});
   };
+  $('deploy').onclick=()=>{vscode.postMessage({type:'deploy',projectId:cur.id});};
 }
 window.addEventListener('message',e=>{const m=e.data;if(!m)return;
   if(m.type==='detected'){$('detect').disabled=false;$('detect').textContent='Detect from workspace';detected=Array.isArray(m.colors)?m.colors:[];
     const h=$('detecthint');h.hidden=false;h.textContent=detected.length?('Found '+detected.length+' brand color(s) in your clientlib CSS — shown with a dashed outline.'):'No brand colors detected in the workspace clientlib CSS.';
     swatchRow('primary',STATE.primarySwatches,'primary');swatchRow('accent',STATE.accentSwatches,'accent');swatchRow('background',STATE.backgroundSwatches,'background');}
+  if(m.type==='deployStarted'){const st=$('status');st.className='status';st.textContent=m.ok?'Deploy started — confirm the prompt; watch the terminal + toast.':'Could not start deploy.';}
   if(m.type==='result'){$('generate').disabled=false;const st=$('status');if(m.ok){st.className='status ok';st.textContent='Done · '+m.created+' created · '+m.updated+' updated. Deploy, then open '+m.authorPath;}else{st.className='status err';st.textContent=m.error;}}
 });
 init();
