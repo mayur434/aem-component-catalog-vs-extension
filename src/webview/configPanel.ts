@@ -52,6 +52,7 @@ interface Selections {
   primary: string;
   accent: string;
   background: string;
+  brandName: string;
   title: string;
   description: string;
   subCategoryProperty: string;
@@ -148,8 +149,12 @@ async function handleGenerate(
 function applySelections(project: PanelProject, message: Record<string, unknown>): ComponentLibraryConfig {
   const config = getDefaults(project.artifactId);
   config.output.servletPackage = project.javaPackage;
-  config.hero.badge = project.artifactId;
-  config.hero.titlePrefix = project.artifactId;
+
+  const brandName = safeLine(String(message.brandName ?? ''), 40) || prettyBrand(project.artifactId);
+  config.hero.badge = brandName;
+  config.hero.titlePrefix = brandName;
+  config.hero.footerText = `${brandName} — Component Catalog · Auto-discovered design system`;
+  config.hero.description = `Browse the ${brandName} component library — every component, grouped by category, with examples and authoring options.`;
 
   const primary = HEX.test(String(message.primary ?? '')) ? String(message.primary) : config.brand.primary;
   const accent = HEX.test(String(message.accent ?? '')) ? String(message.accent) : config.brand.accent;
@@ -299,15 +304,26 @@ function currentSelections(info: ProjectInfo): Selections {
   }
   const features: Record<string, boolean> = {};
   for (const { key } of FEATURES) features[key] = Boolean(config.features[key]);
+  const brandName =
+    config.hero.titlePrefix && config.hero.titlePrefix !== info.artifactId
+      ? config.hero.titlePrefix
+      : prettyBrand(info.artifactId);
   return {
     primary: config.brand.primary,
     accent: config.brand.accent,
     background: config.brand.background,
+    brandName,
     title: config.output.pageTitle,
     description: config.hero.description,
     subCategoryProperty: config.taxonomy.subCategoryProperty || DEFAULT_SUBCATEGORY,
     features,
   };
+}
+
+/** Friendly brand name from an appId: 'pidilite-component-library' -> 'Pidilite'. */
+function prettyBrand(appId: string): string {
+  const first = appId.split('-')[0] || appId;
+  return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
 function render(): string {
@@ -346,11 +362,14 @@ function render(): string {
     </section>
 
     <section class="card">
-      <label class="field-label" for="titleInput">Catalog title</label>
+      <label class="field-label" for="brandInput">Brand name</label>
+      <input id="brandInput" type="text" maxlength="40" placeholder="Pidilite"/>
+      <p class="muted">Shown as the hero prefix — e.g. “<b>Pidilite</b> Component Catalog”.</p>
+      <label class="field-label spaced" for="titleInput">Catalog title</label>
       <input id="titleInput" type="text" maxlength="80" placeholder="Component Catalog"/>
       <div class="pills small" id="titlePresets"></div>
       <label class="field-label spaced" for="descInput">Description <span class="muted">(optional)</span></label>
-      <input id="descInput" type="text" maxlength="240" placeholder="The unified component ecosystem…"/>
+      <input id="descInput" type="text" maxlength="240" placeholder="Auto-filled from the brand name…"/>
     </section>
 
     <section class="card">
@@ -469,6 +488,7 @@ function swatchRow(elId,list,key){
 function renderPresets(elId,list,cb){const el=$(elId);el.innerHTML='';list.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='pill';b.textContent=v;b.onclick=()=>cb(v);el.appendChild(b);});}
 function renderFeatures(){const el=$('features');el.innerHTML='';STATE.features.forEach(f=>{const on=!!cur.selections.features[f.key];const d=document.createElement('div');d.className='toggle'+(on?' on':'');d.innerHTML='<span class="track"></span><span class="meta"><b>'+f.label+'</b><small>'+f.hint+'</small></span>';d.onclick=()=>{cur.selections.features[f.key]=!cur.selections.features[f.key];renderFeatures();};el.appendChild(d);});}
 function renderAll(){
+  $('brandInput').value=cur.selections.brandName;
   $('titleInput').value=cur.selections.title;
   $('descInput').value=cur.selections.description;
   $('subcatInput').value=cur.selections.subCategoryProperty;
@@ -484,6 +504,7 @@ function init(){
   sel.onchange=()=>selectProject(sel.value);
   if(STATE.projects.length<2)$('projectcard').hidden=true;
   renderPresets('titlePresets',STATE.titlePresets,v=>{cur.selections.title=v;$('titleInput').value=v;});
+  $('brandInput').oninput=()=>{cur.selections.brandName=$('brandInput').value;};
   $('titleInput').oninput=()=>{cur.selections.title=$('titleInput').value;};
   $('descInput').oninput=()=>{cur.selections.description=$('descInput').value;};
   $('subcatInput').oninput=()=>{cur.selections.subCategoryProperty=$('subcatInput').value;};
@@ -491,7 +512,7 @@ function init(){
   selectProject(STATE.projects[0].id);
   $('generate').onclick=()=>{
     const st=$('status');st.className='status';st.textContent='Generating…';$('generate').disabled=true;
-    vscode.postMessage({type:'generate',projectId:cur.id,primary:cur.selections.primary,accent:cur.selections.accent,background:cur.selections.background,title:cur.selections.title,description:cur.selections.description,subCategoryProperty:cur.selections.subCategoryProperty,features:cur.selections.features});
+    vscode.postMessage({type:'generate',projectId:cur.id,primary:cur.selections.primary,accent:cur.selections.accent,background:cur.selections.background,brandName:cur.selections.brandName,title:cur.selections.title,description:cur.selections.description,subCategoryProperty:cur.selections.subCategoryProperty,features:cur.selections.features});
   };
   $('deploy').onclick=()=>{vscode.postMessage({type:'deploy',projectId:cur.id});};
 }
