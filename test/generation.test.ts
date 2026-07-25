@@ -65,4 +65,19 @@ describe('transactional generation', () => {
     expect(styles).toContain('.pcl-facet__select');
     expect(styles).toContain('.pcl-metric');
   });
+
+  it('adds the missing clientlib filter root so the package still builds', () => {
+    fixture = createAemCloudFixture();
+    const filterFile = path.join(fixture.root, 'ui.apps/src/main/content/META-INF/vault/filter.xml');
+    // Narrow the filter to components only — the generated clientlib would be uncovered.
+    fs.writeFileSync(
+      filterFile,
+      '<?xml version="1.0" encoding="UTF-8"?>\n<workspaceFilter version="1.0">\n    <filter root="/apps/sample-site/components"/>\n</workspaceFilter>\n',
+    );
+    applyGenerationPlan(buildGenerationPlan(fixture.root, loadConfig(fixture.root)), { actor: 'test' });
+    const filter = fs.readFileSync(filterFile, 'utf-8');
+    expect(filter).toContain('/apps/sample-site/clientlibs/clientlib-componentlibrary');
+    // The page component is already covered by the components rule → not duplicated.
+    expect(filter).not.toContain('/apps/sample-site/components/page/componentlibrary');
+  });
 });

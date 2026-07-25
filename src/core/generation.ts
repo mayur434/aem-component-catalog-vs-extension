@@ -20,6 +20,7 @@ import {
 } from '../utils/manifest';
 import { assertPathInside, resolveExistingPath, safeRelativePath } from '../utils/pathSecurity';
 import { acquireLock } from '../utils/lock';
+import { ensureFilterCoverage } from './filterCoverage';
 
 export type PlanStatus = 'create' | 'update' | 'unchanged' | 'conflict';
 
@@ -107,6 +108,10 @@ export function buildGenerationPlan(projectRoot: string, config: ComponentLibrar
 }
 
 export function applyGenerationPlan(plan: GenerationPlan, options: ApplyOptions = {}): ApplyResult {
+  // Keep the FileVault filters covering the generated /apps paths so the content
+  // package builds (and deploys) — runs even on a no-op apply.
+  ensureFilterCoverage(plan.projectRoot);
+
   const actionable = plan.items.filter(
     (item) =>
       item.status === 'create' ||
