@@ -843,15 +843,16 @@
         gap: 12px;
     }
     .pcl-search { min-width: 0; width: 100%; }
+    .pcl-toolbar__inner { max-width: 100%; min-width: 0; }
     .pcl-filter-pills {
         flex-wrap: nowrap;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         padding-bottom: 4px;
         scrollbar-width: none;
-        margin: 0 -16px;
-        padding-left: 16px;
-        padding-right: 16px;
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
     }
     .pcl-filter-pills::-webkit-scrollbar { display: none; }
     .pcl-filter-pill { flex: 0 0 auto; }
