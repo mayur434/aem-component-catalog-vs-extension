@@ -95,6 +95,12 @@ export interface CatalogRuntimeConfig {
    * library meant for discovery), every shipped component is listed regardless of usage.
    */
   requirePublishedUsage: boolean;
+  /**
+   * Name of the Oak Lucene index (under /oak:index) that keeps the nightly usage crawl's
+   * sling:resourceType LIKE query off a full repository traversal. Bump the trailing number
+   * (e.g. -1 -> -2) if the index definition changes, to force Oak to reindex.
+   */
+  usageIndexName: string;
 }
 
 export interface GovernanceConfig {

@@ -67,6 +67,42 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => script.includes('allow jcr:read on /content')),
     ).toBe(true);
+    // Oak index via RepoInit (not a ui.content package): the usage crawl's
+    // "sling:resourceType LIKE '%/components/%'" query would otherwise fall back to a full
+    // unindexed repository traversal on every rebuild (confirmed live via Oak's own
+    // "Traversal query (query without index)... consider creating an index" log line).
+    // RepoInit runs with a privileged session and writes directly to the repository, so this
+    // needs neither ui.content nor any FileVault packaging opt-in.
+    // oak:QueryIndexDefinition has a mandatory "type" property, so a plain "create path" then
+    // a separate "set properties on" statement fails: RepoInit saves the bare node first,
+    // violating the constraint before the second statement ever runs (confirmed live via
+    // OakConstraint0021 "Mandatory properties '[type]' not found"). The "with properties"
+    // form (SLING-10740) sets it atomically as part of node creation.
+    expect(
+      parsed.scripts.some((script) =>
+        script.includes(
+          'create path (oak:QueryIndexDefinition) /oak:index/sample-site-component-usage-resourcetype-1 with properties',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      parsed.scripts.some(
+        (script) =>
+          script.includes('/oak:index/sample-site-component-usage-resourcetype-1') &&
+          script.includes('set type{String} to "lucene"') &&
+          script.includes('set evaluatePathRestrictions{Boolean} to true') &&
+          script.includes('set includedPaths{String} to /content'),
+      ),
+    ).toBe(true);
+    expect(
+      parsed.scripts.some(
+        (script) =>
+          script.includes('indexRules/nt:base/properties/slingResourceType') &&
+          script.includes('set name{String} to "sling:resourceType"') &&
+          script.includes('set analyzed{Boolean} to true') &&
+          script.includes('set propertyIndex{Boolean} to true'),
+      ),
+    ).toBe(true);
     const usageService = plan.items.find((item) => item.relativePath.endsWith('ComponentUsageService.java'))!.content;
     expect(usageService).toContain('scheduler.expression=0 0 2 * * ?');
     expect(usageService).toContain('implements Runnable');
@@ -166,4 +202,27 @@ describe('transactional generation', () => {
     expect(filter).not.toContain('/apps/sample-site/clientlibs/clientlib-componentlibrary');
     expect(filter).not.toContain('/apps/sample-site/components/page/componentlibrary');
   });
+
+  it('never emits an XML element/attribute prefix without a matching xmlns declaration', () => {
+    // Caught a real bug during development: the Oak index template used <nt:base> without
+    // declaring xmlns:nt, which parses as "well-formed enough" by lenient tools but is
+    // rejected as an unbound-prefix error by a real (namespace-aware) XML parser - exactly
+    // the class of error FileVault would hit on package install.
+    fixture = createAemCloudFixture();
+    const plan = buildGenerationPlan(fixture.root, loadConfig(fixture.root));
+    for (const item of plan.items.filter((entry) => entry.relativePath.endsWith('.xml'))) {
+      const declared = new Set(
+        [...item.content.matchAll(/xmlns:([a-zA-Z0-9_-]+)=/g)].map((match) => match[1]),
+      );
+      const used = new Set(
+        [...item.content.matchAll(/<\/?([a-zA-Z0-9_-]+):[a-zA-Z0-9_-]+[\s/>]/g)].map((match) => match[1]),
+      );
+      for (const prefix of used) {
+        expect(declared, `${item.relativePath} uses "${prefix}:" without declaring xmlns:${prefix}`).toContain(
+          prefix,
+        );
+      }
+    }
+  });
+
 });

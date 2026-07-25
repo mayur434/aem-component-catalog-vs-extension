@@ -20,6 +20,7 @@ export function planOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths)
     pageResourceType: config.output.pageResourceType,
     pageTitle: config.output.pageTitle,
     pagePaths: contentPagePaths(config.output.contentPath),
+    usageIndexName: config.catalog.usageIndexName,
   });
   return [
     {

@@ -97,6 +97,7 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       // additions until someone happens to publish a page with them. Projects that want a
       // stricter "only what's live" view can opt in per project.
       requirePublishedUsage: false,
+      usageIndexName: `${appId}-component-usage-resourcetype-1`,
     },
     governance: {
       policyFile: '.aem-catalog-policy.json',

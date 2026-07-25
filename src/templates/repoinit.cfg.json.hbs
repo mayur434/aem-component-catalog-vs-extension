@@ -14,6 +14,12 @@
         "set properties on /conf/{{appId}}/settings/wcm/templates/component-library-page/jcr:content\n    set jcr:title{String} to \"Component Library Page\"\n    set jcr:description{String} to \"Author-only enterprise component catalog\"\n    set status{String} to enabled\nend"{{#each pagePaths}},
         "create path (cq:Page) {{this.path}}",
         "create path (cq:PageContent) {{this.path}}/jcr:content"{{#if this.target}},
-        "set properties on {{this.path}}/jcr:content\n    set sling:resourceType{String} to {{../pageResourceType}}\n    set jcr:title{String} to \"{{osgiString ../pageTitle}}\"\n    set cq:template{String} to /conf/{{../appId}}/settings/wcm/templates/component-library-page\nend"{{/if}}{{/each}}
+        "set properties on {{this.path}}/jcr:content\n    set sling:resourceType{String} to {{../pageResourceType}}\n    set jcr:title{String} to \"{{osgiString ../pageTitle}}\"\n    set cq:template{String} to /conf/{{../appId}}/settings/wcm/templates/component-library-page\nend"{{/if}}{{/each}},
+        "create path (oak:QueryIndexDefinition) /oak:index/{{usageIndexName}} with properties\n    set type{String} to \"lucene\"\n    set async{String} to async\n    set compatVersion{Long} to 2\n    set evaluatePathRestrictions{Boolean} to true\n    set includedPaths{String} to /content\nend",
+        "create path (nt:unstructured) /oak:index/{{usageIndexName}}/indexRules",
+        "create path (nt:unstructured) /oak:index/{{usageIndexName}}/indexRules/nt:base",
+        "create path (nt:unstructured) /oak:index/{{usageIndexName}}/indexRules/nt:base/properties",
+        "create path (nt:unstructured) /oak:index/{{usageIndexName}}/indexRules/nt:base/properties/slingResourceType",
+        "set properties on /oak:index/{{usageIndexName}}/indexRules/nt:base/properties/slingResourceType\n    set name{String} to \"sling:resourceType\"\n    set propertyIndex{Boolean} to true\n    set analyzed{Boolean} to true\nend"
     ]
 }

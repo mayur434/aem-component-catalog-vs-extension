@@ -208,6 +208,9 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   if (!config.catalog.usageCron || !/^[-0-9*?/,\s]+$/.test(config.catalog.usageCron)) {
     errors.push('catalog.usageCron must be a valid quartz cron expression');
   }
+  if (!config.catalog.usageIndexName || !/^[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(config.catalog.usageIndexName)) {
+    errors.push('catalog.usageIndexName must be a valid Oak index node name (alphanumeric and dashes)');
+  }
 
   return errors;
 }
