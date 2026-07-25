@@ -88,6 +88,9 @@ describe('transactional generation', () => {
     expect(script).toContain('relationshipsSection');
     expect(script).toContain('carouselSection');
     expect(script).toContain('bindCarousel');
+    // "Where it's used" opens a scrollable, filterable modal rather than an inline list.
+    expect(script).toContain('bindUsageModal');
+    expect(script).toContain('renderUsageRows');
     // Sort control: default usage high->low, re-orders listing without duplicate listeners.
     expect(script).toContain('getSortMode');
     expect(script).toContain('renderSections');
@@ -97,10 +100,12 @@ describe('transactional generation', () => {
     )!.content;
     expect(body).toContain('id="pcl-sort"');
     expect(body).toContain('<option value="usage" selected>');
+    expect(body).toContain('id="pcl-usage-modal"');
     const styles = plan.items.find((item) => item.relativePath.endsWith('styles.css'))!.content;
     expect(styles).toContain('.pcl-facet__select');
     expect(styles).toContain('.pcl-metric');
     expect(styles).toContain('.pcl-sort__select');
+    expect(styles).toContain('.pcl-usage-modal__panel');
     // The catalog page must extend the WCM core page so it renders in any project.
     const pageDef = plan.items.find((item) =>
       item.relativePath.endsWith('page/componentlibrary/.content.xml'),

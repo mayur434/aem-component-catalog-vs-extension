@@ -91,6 +91,25 @@
     </div>
     {{/if}}
 
+    <!--/* "WHERE IT'S USED" MODAL — full scrollable, filterable page list (populated by JS) */-->
+    <div class="pcl-usage-modal" id="pcl-usage-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Pages using this component">
+        <div class="pcl-usage-modal__backdrop"></div>
+        <div class="pcl-usage-modal__panel" role="document">
+            <div class="pcl-usage-modal__head">
+                <h3 class="pcl-usage-modal__title">Where it’s used</h3>
+                <span class="pcl-usage-modal__badge" id="pcl-usage-modal-count">0</span>
+                <button type="button" class="pcl-usage-modal__close" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="pcl-usage-modal__search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" class="pcl-usage-modal__filter" aria-label="Filter pages" placeholder="Filter pages…" />
+            </div>
+            <ul class="pcl-usage-modal__list" id="pcl-usage-modal-list"></ul>
+        </div>
+    </div>
+
     <!--/* FOOTER */-->
     <footer class="pcl-footer">
         {{xml hero.footerText}}

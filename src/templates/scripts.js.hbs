@@ -460,6 +460,7 @@
         {{/if}}
 
         bindCarousel();
+        bindUsageModal(comp);
         {{#if features.codeSnippets}}
         bindCopyButtons();
         {{/if}}
@@ -528,24 +529,98 @@
         return '<div class="pcl-info-card__row"><span class="pcl-info-card__label">' + esc(label) + '</span><span class="pcl-info-card__value">' + value + "</span></div>";
     }
 
-    /* Where it's used: pages that instantiate this component (from the nightly index). */
+    /* Where it's used: a compact summary + a button that opens the full, scrollable list in a
+       modal (the list can run to thousands of pages, so it must not live inline on the page). */
     function usageSection(comp) {
-        var pages = comp.usages || [];
         var count = comp.usageCount || 0;
-        var html = '<div class="pcl-usage-card"><h3 class="pcl-usage-card__title">Where it’s used <span class="pcl-usage-card__count">' + count + "</span></h3>";
-        if (pages.length === 0) {
-            return html + '<p class="pcl-fields__empty">Not currently used on any page.</p></div>';
+        var html = '<div class="pcl-usage-card"><div class="pcl-usage-card__head">' +
+            '<h3 class="pcl-usage-card__title">Where it’s used <span class="pcl-usage-card__count">' + count + "</span></h3>";
+        if (count > 0) {
+            html += '<button type="button" class="pcl-usage-card__view" data-usage-open>' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>' +
+                "View all pages</button>";
         }
-        html += '<ul class="pcl-usage-list">';
-        for (var i = 0; i < pages.length && i < 250; i++) {
-            var p = pages[i];
-            html += '<li class="pcl-usage-list__item"><a href="' + esc(p.path) + '.html?wcmmode=disabled" target="_blank" rel="noopener">' +
-                '<span class="pcl-usage-list__title">' + esc(p.title || p.path) + "</span>" +
-                '<span class="pcl-usage-list__path">' + esc(p.path) + "</span></a></li>";
-        }
-        html += "</ul>";
-        if (pages.length > 250) html += '<p class="pcl-fields__empty">… and ' + (pages.length - 250) + " more</p>";
+        html += "</div>";
+        html += count > 0
+            ? '<p class="pcl-usage-card__hint">Instantiated on ' + count + (count === 1 ? " page" : " pages") + " across the sites. Open the list to browse and jump to any page.</p>"
+            : '<p class="pcl-fields__empty">Not currently used on any page.</p>';
         return html + "</div>";
+    }
+
+    /* ------ "Where it's used" modal (shared, scrollable, filterable) ------ */
+    var usagePages = [];
+    var usageLabel = "";
+    var usageModalReady = false;
+
+    function usageRow(p) {
+        return '<li class="pcl-usage-modal__item"><a href="' + esc(p.path) + '.html?wcmmode=disabled" target="_blank" rel="noopener">' +
+            '<span class="pcl-usage-modal__item-title">' + esc(p.title || p.path) + "</span>" +
+            '<span class="pcl-usage-modal__item-path">' + esc(p.path) + "</span></a></li>";
+    }
+
+    function renderUsageRows(query) {
+        var list = document.getElementById("pcl-usage-modal-list");
+        if (!list) return;
+        var needle = (query || "").toLowerCase();
+        var out = "", shown = 0;
+        for (var i = 0; i < usagePages.length; i++) {
+            var p = usagePages[i];
+            if (needle) {
+                var hay = ((p.title || "") + " " + p.path).toLowerCase();
+                if (hay.indexOf(needle) < 0) continue;
+            }
+            out += usageRow(p);
+            shown++;
+        }
+        list.innerHTML = out || '<li class="pcl-usage-modal__empty">No pages match your filter.</li>';
+        var countEl = document.getElementById("pcl-usage-modal-count");
+        if (countEl) countEl.textContent = shown === usagePages.length ? shown : shown + " / " + usagePages.length;
+    }
+
+    function openUsageModal() {
+        var modal = document.getElementById("pcl-usage-modal");
+        if (!modal) return;
+        var titleEl = modal.querySelector(".pcl-usage-modal__title");
+        var filterEl = modal.querySelector(".pcl-usage-modal__filter");
+        if (titleEl) titleEl.textContent = "Where it’s used" + (usageLabel ? " — " + usageLabel : "");
+        if (filterEl) filterEl.value = "";
+        renderUsageRows("");
+        modal.classList.add("pcl-usage-modal--open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        if (filterEl) filterEl.focus();
+    }
+
+    function closeUsageModal() {
+        var modal = document.getElementById("pcl-usage-modal");
+        if (!modal) return;
+        modal.classList.remove("pcl-usage-modal--open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+    }
+
+    function ensureUsageModal() {
+        if (usageModalReady) return;
+        var modal = document.getElementById("pcl-usage-modal");
+        if (!modal) return;
+        var closeEl = modal.querySelector(".pcl-usage-modal__close");
+        var backdrop = modal.querySelector(".pcl-usage-modal__backdrop");
+        var filterEl = modal.querySelector(".pcl-usage-modal__filter");
+        if (closeEl) closeEl.addEventListener("click", closeUsageModal);
+        if (backdrop) backdrop.addEventListener("click", closeUsageModal);
+        if (filterEl) filterEl.addEventListener("input", function () { renderUsageRows(filterEl.value); });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && modal.classList.contains("pcl-usage-modal--open")) closeUsageModal();
+        });
+        usageModalReady = true;
+    }
+
+    function bindUsageModal(comp) {
+        ensureUsageModal();
+        usagePages = comp.usages || [];
+        usageLabel = comp.title || comp.name || "";
+        var openers = document.querySelectorAll("[data-usage-open]");
+        for (var i = 0; i < openers.length; i++) openers[i].addEventListener("click", openUsageModal);
     }
 
     /* Relationships: components that share this component's super type ("built on the
