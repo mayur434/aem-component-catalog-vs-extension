@@ -27,6 +27,16 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
         exclude: ['.hidden'],
         labels: {},
       },
+      exclude: {
+        leafNames: ['container', 'responsivegrid', 'parsys', 'page', 'xfpage', 'structure', 'root'],
+        superTypeTokens: [
+          'wcm/components/container',
+          'wcm/foundation/components/parsys',
+          'wcm/foundation/components/responsivegrid',
+          'wcm/components/page',
+          'wcm/foundation/components/page',
+        ],
+      },
       thumbnails: {
         fileNames: ['thumbnail.png', 'thumbnail.svg', 'thumbnail.jpg'],
         fallbackIcon: 'grid',

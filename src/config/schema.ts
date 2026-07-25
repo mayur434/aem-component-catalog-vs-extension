@@ -22,6 +22,16 @@ export interface ComponentsConfig {
     exclude: string[];
     labels: Record<string, string>;
   };
+  /**
+   * Components hidden from the catalog by default: structural/layout building blocks that
+   * every page uses (containers, parsys/grid, page/structure) add no value in a showcase.
+   * A component is excluded when its leaf name is in `leafNames` OR its sling:resourceSuperType
+   * contains one of `superTypeTokens`. (`.hidden` group components are already excluded.)
+   */
+  exclude: {
+    leafNames: string[];
+    superTypeTokens: string[];
+  };
   thumbnails: {
     fileNames: string[];
     fallbackIcon: 'grid' | 'box' | 'layers' | string;

@@ -79,6 +79,10 @@ describe('transactional generation', () => {
     expect(servlet).toContain('ASSET_ROOT = "/content/dam/sample-site/catalog"');
     expect(servlet).toContain('damThumbnail');
     expect(servlet).toContain('usageService.pagesFor');
+    // Hidden/container/structural components are excluded from the catalog by default.
+    expect(servlet).toContain('isStructural');
+    expect(servlet).toContain('EXCLUDED_LEAF_NAMES.add("container")');
+    expect(servlet).toContain('wcm/components/container');
     const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
     expect(script).toContain('var h = esc(md)');
     expect(script).toContain('fetchAll(endpoint)');

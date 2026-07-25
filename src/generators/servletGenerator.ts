@@ -29,6 +29,8 @@ export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): Ge
         resourceType: config.output.pageResourceType,
         subServiceName: config.serviceUser.subServiceName,
         excludedGroups: config.components.groups.exclude,
+        excludedLeafNames: config.components.exclude.leafNames,
+        excludedSuperTypeTokens: config.components.exclude.superTypeTokens,
         thumbnailFileNames: config.components.thumbnails.fileNames,
         layoutFolderName: config.components.layouts.folderName,
         layoutExclude: config.components.layouts.exclude,

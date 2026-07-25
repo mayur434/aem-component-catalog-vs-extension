@@ -69,12 +69,20 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     private static final int MAX_PAGE_SIZE = 1000;
     private static final long CACHE_MILLIS = {{cacheSeconds}}L * 1000L;
     private static final Set<String> EXCLUDED_GROUPS = new HashSet<>();
+    private static final Set<String> EXCLUDED_LEAF_NAMES = new HashSet<>();
+    private static final List<String> EXCLUDED_SUPER_TOKENS = new ArrayList<>();
     private static final List<String> THUMBNAIL_NAMES = new ArrayList<>();
     private static final List<String> LAYOUT_EXCLUDES = new ArrayList<>();
 
     static {
         {{#each excludedGroups}}
         EXCLUDED_GROUPS.add({{javaString this}});
+        {{/each}}
+        {{#each excludedLeafNames}}
+        EXCLUDED_LEAF_NAMES.add({{javaString this}});
+        {{/each}}
+        {{#each excludedSuperTypeTokens}}
+        EXCLUDED_SUPER_TOKENS.add({{javaString this}});
         {{/each}}
         {{#each thumbnailFileNames}}
         THUMBNAIL_NAMES.add({{javaString this}});
@@ -202,6 +210,25 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         }
     }
 
+    /**
+     * A component is structural (container / layout grid / page-level) when its own name matches a
+     * known structural leaf, or its super type resolves to a container/parsys/page base component.
+     */
+    private boolean isStructural(String name, String superType) {
+        if (name != null && EXCLUDED_LEAF_NAMES.contains(name.toLowerCase())) {
+            return true;
+        }
+        if (superType != null && !superType.isEmpty()) {
+            String needle = superType.toLowerCase();
+            for (String token : EXCLUDED_SUPER_TOKENS) {
+                if (needle.contains(token)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void addComponent(
             Resource resource,
             ValueMap properties,
@@ -210,6 +237,12 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     ) {
         String group = properties.get("componentGroup", String.class);
         if (group == null || EXCLUDED_GROUPS.contains(group)) {
+            return;
+        }
+        // Structural/layout building blocks (containers, parsys/grid, page) are used on every page
+        // but add no value in a showcase — exclude them by default.
+        String superType = properties.get("sling:resourceSuperType", String.class);
+        if (isStructural(resource.getName(), superType)) {
             return;
         }
         String resourceType = resource.getPath().replaceFirst("^/apps/", "");
