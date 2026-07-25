@@ -1128,3 +1128,166 @@
         font-size: 22px;
     }
 }
+
+/* ============================================================
+   Facets, quality metrics, and detail relationships
+   ============================================================ */
+.pcl-facets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+    padding: 14px 0 2px;
+    border-top: 1px solid var(--pcl-border-light);
+    margin-top: 14px;
+}
+.pcl-facet {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+}
+.pcl-facet__label {
+    color: var(--pcl-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.pcl-facet__select {
+    appearance: none;
+    background: var(--pcl-surface);
+    border: 1px solid var(--pcl-border);
+    border-radius: var(--pcl-radius-sm);
+    padding: 7px 28px 7px 12px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--pcl-text);
+    cursor: pointer;
+    min-width: 150px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A94A6' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+.pcl-facet__select:focus {
+    outline: none;
+    border-color: var(--pcl-accent);
+    box-shadow: 0 0 0 3px rgba(76, 173, 233, .18);
+}
+.pcl-facet__reset {
+    margin-left: auto;
+    align-self: flex-end;
+    background: none;
+    border: 1px solid var(--pcl-border);
+    border-radius: var(--pcl-radius-sm);
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--pcl-text-secondary);
+    cursor: pointer;
+    transition: var(--pcl-transition);
+}
+.pcl-facet__reset:hover {
+    background: var(--pcl-surface-hover);
+    color: var(--pcl-text);
+}
+
+.pcl-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+}
+.pcl-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 16px;
+    background: var(--pcl-surface-alt);
+    border: 1px solid var(--pcl-border-light);
+    border-radius: var(--pcl-radius);
+    min-width: 110px;
+}
+.pcl-metric__value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--pcl-primary);
+    line-height: 1.1;
+}
+.pcl-metric__label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--pcl-text-muted);
+}
+
+.pcl-relations {
+    margin-top: 28px;
+    padding: 24px;
+    background: var(--pcl-surface);
+    border: 1px solid var(--pcl-border-light);
+    border-radius: var(--pcl-radius-lg);
+    box-shadow: var(--pcl-shadow-sm);
+}
+.pcl-relations__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--pcl-text);
+    margin: 0 0 16px;
+}
+.pcl-relations__group + .pcl-relations__group {
+    margin-top: 18px;
+}
+.pcl-relations__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--pcl-text-secondary);
+    margin: 0 0 10px;
+}
+.pcl-relations__label code {
+    font-family: var(--pcl-font-mono);
+    font-size: 12px;
+    color: var(--pcl-text-muted);
+    background: var(--pcl-surface-alt);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.pcl-relations__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+}
+.pcl-relations__list a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    background: var(--pcl-surface-alt);
+    border: 1px solid var(--pcl-border-light);
+    border-radius: var(--pcl-radius-sm);
+    color: var(--pcl-text);
+    text-decoration: none;
+    font-size: 13px;
+    transition: var(--pcl-transition);
+}
+.pcl-relations__list a:hover {
+    background: var(--pcl-surface-hover);
+    border-color: var(--pcl-accent);
+}
+.pcl-relations__cat {
+    font-size: 11px;
+    color: var(--pcl-text-muted);
+    white-space: nowrap;
+}
+@media (max-width: 768px) {
+    .pcl-facet__select {
+        min-width: 120px;
+    }
+    .pcl-facet__reset {
+        margin-left: 0;
+    }
+}

@@ -8,6 +8,9 @@
 (function () {
     "use strict";
 
+    /* Full catalog dataset, shared between listing, facets, and detail relationships. */
+    var catalogData = null;
+
     /* ------ helpers ------ */
     function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
@@ -83,7 +86,7 @@
     function renderCard(comp, pagePath, category, sub) {
         var href = pagePath + ".html/" + encodeURIComponent(comp.name);
         var hasThumbnail = !!comp.thumbnailPath;
-        var html = '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-category="' + esc(category) + '" data-subcategory="' + esc(sub) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '">';
+        var html = '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-category="' + esc(category) + '" data-subcategory="' + esc(sub) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '" data-quality="' + esc(comp.qualityScore == null ? "" : comp.qualityScore) + '">';
         html += '<div class="pcl-card__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>';
         if (hasThumbnail) {
             html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" loading="lazy"/></div>';
@@ -134,6 +137,9 @@
         }
         pillsContainer.innerHTML = pillsHtml;
 
+        renderFacets(data.components);
+        renderMetrics(data);
+
         // Group components: Category (website) -> Sub Category -> [components].
         var byCategory = {};
         var components = data.components;
@@ -176,11 +182,101 @@
         var searchInput = document.querySelector(".pcl-search__input");
         if (searchInput) {
             searchInput.addEventListener("input", function () {
-                applyFilters(searchInput.value, getActiveFilter());
+                applyFilters(searchInput.value, getActiveFilter(), getFacetState());
             });
         }
         bindPills(searchInput);
+        bindFacets(searchInput);
     }
+
+    /* ------ facets (Status / Owner / Quality) ------ */
+    function uniqueValues(components, key) {
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < components.length; i++) {
+            var v = (components[i][key] || "").trim();
+            if (v && !seen[v]) { seen[v] = true; out.push(v); }
+        }
+        return out.sort();
+    }
+
+    function selectFacet(id, label, values) {
+        var html = '<label class="pcl-facet"><span class="pcl-facet__label">' + esc(label) + '</span>';
+        html += '<select class="pcl-facet__select" id="' + id + '"><option value="">All</option>';
+        for (var i = 0; i < values.length; i++) {
+            html += '<option value="' + esc(values[i]) + '">' + esc(values[i]) + "</option>";
+        }
+        return html + "</select></label>";
+    }
+
+    function renderFacets(components) {
+        var container = document.getElementById("pcl-facets");
+        if (!container) return;
+        var html = selectFacet("pcl-facet-status", "Status", uniqueValues(components, "status"));
+        html += selectFacet("pcl-facet-owner", "Owner", uniqueValues(components, "owner"));
+        {{#if features.qualityScore}}
+        html += '<label class="pcl-facet"><span class="pcl-facet__label">Quality</span>' +
+            '<select class="pcl-facet__select" id="pcl-facet-quality">' +
+            '<option value="">Any</option><option value="high">Ready (≥70)</option><option value="low">Needs work (&lt;70)</option>' +
+            "</select></label>";
+        {{/if}}
+        html += '<button type="button" class="pcl-facet__reset" id="pcl-facet-reset">Reset</button>';
+        container.innerHTML = html;
+    }
+
+    function getFacetState() {
+        function val(id) { var el = document.getElementById(id); return el ? el.value : ""; }
+        return { status: val("pcl-facet-status"), owner: val("pcl-facet-owner"), quality: val("pcl-facet-quality") };
+    }
+
+    function bindFacets(searchInput) {
+        var container = document.getElementById("pcl-facets");
+        if (!container) return;
+        container.addEventListener("change", function () {
+            applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
+        });
+        var reset = document.getElementById("pcl-facet-reset");
+        if (reset) {
+            reset.addEventListener("click", function () {
+                ["pcl-facet-status", "pcl-facet-owner", "pcl-facet-quality"].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) el.value = "";
+                });
+                applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
+            });
+        }
+    }
+
+    {{#if features.qualityScore}}
+    /* ------ quality dashboard strip ------ */
+    function renderMetrics(data) {
+        var container = document.getElementById("pcl-metrics");
+        if (!container) return;
+        var comps = data.components || [];
+        var total = comps.length || 1;
+        var sumQuality = 0, documented = 0, governed = 0, dialogs = 0;
+        for (var i = 0; i < comps.length; i++) {
+            sumQuality += (comps[i].qualityScore || 0);
+            if (comps[i].readmePath) documented++;
+            if (comps[i].owner && comps[i].status && comps[i].version) governed++;
+            if (comps[i].hasDialog) dialogs++;
+        }
+        var chips = [
+            metricChip(Math.round(sumQuality / total) + "/100", "Avg quality"),
+            metricChip(pct(documented, total), "Documented"),
+            metricChip(pct(governed, total), "Governed"),
+            metricChip(pct(dialogs, total), "Authorable")
+        ];
+        container.innerHTML = chips.join("");
+    }
+    function metricChip(value, label) {
+        return '<div class="pcl-metric"><span class="pcl-metric__value">' + esc(value) +
+            '</span><span class="pcl-metric__label">' + esc(label) + "</span></div>";
+    }
+    function pct(n, total) { return Math.round((n / total) * 100) + "%"; }
+    {{else}}
+    function renderMetrics() {}
+    {{/if}}
 
     function getActiveFilter() {
         var active = document.querySelector(".pcl-filter-pill.active");
@@ -194,13 +290,14 @@
                 pills.forEach(function (p) { p.classList.remove("active"); });
                 pill.classList.add("active");
                 var query = searchInput ? searchInput.value : "";
-                applyFilters(query, pill.getAttribute("data-filter") || "");
+                applyFilters(query, pill.getAttribute("data-filter") || "", getFacetState());
             });
         });
     }
 
-    function applyFilters(query, category) {
+    function applyFilters(query, category, facets) {
         query = (query || "").toLowerCase().trim();
+        facets = facets || {};
         var cards = document.querySelectorAll(".pcl-card");
         var subSections = document.querySelectorAll(".pcl-subcategory-section");
         var sections = document.querySelectorAll(".pcl-category-section");
@@ -213,11 +310,16 @@
             var sub = (card.getAttribute("data-subcategory") || "").toLowerCase();
             var owner = (card.getAttribute("data-owner") || "").toLowerCase();
             var status = (card.getAttribute("data-status") || "").toLowerCase();
+            var quality = parseInt(card.getAttribute("data-quality") || "0", 10);
             var matchSearch = !query || title.indexOf(query) !== -1 || desc.indexOf(query) !== -1 ||
                 grp.indexOf(query) !== -1 || cat.toLowerCase().indexOf(query) !== -1 || sub.indexOf(query) !== -1 ||
                 owner.indexOf(query) !== -1 || status.indexOf(query) !== -1;
             var matchCategory = !category || cat === category;
-            var show = matchSearch && matchCategory;
+            var matchStatus = !facets.status || (card.getAttribute("data-status") || "") === facets.status;
+            var matchOwner = !facets.owner || (card.getAttribute("data-owner") || "") === facets.owner;
+            var matchQuality = !facets.quality ||
+                (facets.quality === "high" ? quality >= 70 : quality < 70);
+            var show = matchSearch && matchCategory && matchStatus && matchOwner && matchQuality;
             card.style.display = show ? "" : "none";
             if (show) visibleCount++;
         });
@@ -284,6 +386,8 @@
         {{/if}}
         html += "</div></div>";
 
+        html += relationshipsSection(comp, pagePath);
+
         {{#if features.lightbox}}
         if (comp.layouts && comp.layouts.length > 0) {
             html += '<div class="pcl-gallery"><div class="pcl-gallery__header">';
@@ -345,6 +449,40 @@
 
     function infoRow(label, value) {
         return '<div class="pcl-info-card__row"><span class="pcl-info-card__label">' + esc(label) + '</span><span class="pcl-info-card__value">' + value + "</span></div>";
+    }
+
+    /* Relationships: components that share this component's super type ("built on the
+       same core component"), plus same-named variants in other website categories. */
+    function relationshipsSection(comp, pagePath) {
+        if (!catalogData || !catalogData.components) return "";
+        var all = catalogData.components;
+        var siblings = [], variants = [];
+        var leaf = (comp.name || "").split("/").pop();
+        for (var i = 0; i < all.length; i++) {
+            var other = all[i];
+            if (other.name === comp.name) continue;
+            if (comp.superType && other.superType === comp.superType) siblings.push(other);
+            else if (leaf && (other.name || "").split("/").pop() === leaf) variants.push(other);
+        }
+        if (siblings.length === 0 && variants.length === 0) return "";
+        var html = '<div class="pcl-relations"><h3 class="pcl-relations__title">Relationships</h3>';
+        html += relationGroup("Built on the same core component", comp.superType, siblings, pagePath);
+        html += relationGroup("Variants in other categories", leaf, variants, pagePath);
+        return html + "</div>";
+    }
+
+    function relationGroup(label, hint, list, pagePath) {
+        if (!list || list.length === 0) return "";
+        var html = '<div class="pcl-relations__group"><h4 class="pcl-relations__label">' + esc(label);
+        if (hint) html += ' <code>' + esc(hint) + "</code>";
+        html += "</h4><ul class=\"pcl-relations__list\">";
+        for (var i = 0; i < list.length && i < 24; i++) {
+            var c = list[i];
+            html += '<li><a href="' + pagePath + ".html/" + encodeURIComponent(c.name) + '">' +
+                esc(c.title) + ' <span class="pcl-relations__cat">' + esc(c.category || "") + "</span></a></li>";
+        }
+        if (list.length > 24) html += "<li>… and " + (list.length - 24) + " more</li>";
+        return html + "</ul></div>";
     }
 
     function statusDot(yes) {
@@ -429,6 +567,7 @@
 
         fetchAll(endpoint)
             .then(function (data) {
+                catalogData = data;
                 var suffix = getSuffix();
                 if (suffix) {
                     var found = null;

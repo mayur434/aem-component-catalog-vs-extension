@@ -17,6 +17,7 @@ export class ActionsProvider implements vscode.TreeDataProvider<ActionItem> {
 
   getChildren(): ActionItem[] {
     return [
+      new ActionItem('Create Micro-site', 'aemComponentLibrary.createMicrosite', '$(rocket)'),
       new ActionItem('Open Dashboard', 'aemComponentLibrary.openDashboard', '$(dashboard)'),
       new ActionItem('Initialize Config', 'aemComponentLibrary.init', '$(gear)'),
       new ActionItem('Generate Library', 'aemComponentLibrary.generate', '$(play)'),

@@ -19,6 +19,7 @@ import {
   type Manifest,
 } from '../utils/manifest';
 import { assertPathInside, resolveExistingPath, safeRelativePath } from '../utils/pathSecurity';
+import { acquireLock } from '../utils/lock';
 
 export type PlanStatus = 'create' | 'update' | 'unchanged' | 'conflict';
 
@@ -119,6 +120,21 @@ export function applyGenerationPlan(plan: GenerationPlan, options: ApplyOptions 
     return summarize(plan, null, new Set());
   }
 
+  // Serialize writes: refuse to run while another process holds a live lock, so a
+  // CI run and an editor (or two windows) can never interleave file mutations.
+  const releaseLock = acquireLock(plan.projectRoot, options.actor ?? 'vscode');
+  try {
+    return applyLocked(plan, actionable, options);
+  } finally {
+    releaseLock();
+  }
+}
+
+function applyLocked(
+  plan: GenerationPlan,
+  actionable: GenerationPlanItem[],
+  options: ApplyOptions,
+): ApplyResult {
   const transaction = createTransaction(plan, actionable, options.actor ?? 'vscode');
   const transactionRoot = path.join(ensureStateRoot(plan.projectRoot), 'backups', transaction.id);
   fs.mkdirSync(path.join(transactionRoot, 'files'), { recursive: true, mode: 0o700 });

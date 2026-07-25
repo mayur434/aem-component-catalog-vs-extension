@@ -3,6 +3,7 @@
  */
 import * as vscode from 'vscode';
 import { initCommand } from './commands/init';
+import { createMicrositeCommand } from './commands/createMicrosite';
 import { generateCommand } from './commands/generate';
 import { updateCommand } from './commands/update';
 import { previewCommand } from './commands/preview';
@@ -34,6 +35,10 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('aemComponentLibrary.init', async (projectRoot?: string) => {
       await initCommand(projectRoot);
+      refreshAll();
+    }),
+    vscode.commands.registerCommand('aemComponentLibrary.createMicrosite', async (projectRoot?: string) => {
+      await createMicrositeCommand(projectRoot);
       refreshAll();
     }),
     vscode.commands.registerCommand('aemComponentLibrary.generate', async (projectRoot?: string) => {

@@ -57,5 +57,12 @@ describe('transactional generation', () => {
     const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
     expect(script).toContain('var h = esc(md)');
     expect(script).toContain('fetchAll(endpoint)');
+    // Richer output: faceted filters, quality metrics strip, and detail relationships.
+    expect(script).toContain('renderFacets');
+    expect(script).toContain('renderMetrics');
+    expect(script).toContain('relationshipsSection');
+    const styles = plan.items.find((item) => item.relativePath.endsWith('styles.css'))!.content;
+    expect(styles).toContain('.pcl-facet__select');
+    expect(styles).toContain('.pcl-metric');
   });
 });

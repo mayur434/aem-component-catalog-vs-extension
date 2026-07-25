@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getDefaults } from './config/defaults';
 import { configExists, configPath, loadConfig, saveConfig } from './config/loader';
+import type { ComponentLibraryConfig } from './config/schema';
 import { formatDoctorReport, runDoctor } from './core/doctor';
 import {
   applyGenerationPlan,
@@ -12,6 +13,13 @@ import {
 } from './core/generation';
 import { doctorReportToSarif } from './core/sarif';
 import { defaultPolicy } from './core/policy';
+import { formatPreflight, runPreflight } from './core/preflight';
+import {
+  applyRemediationActions,
+  availableRemediations,
+  planRemediation,
+} from './core/remediation';
+import { clearStaleLock } from './utils/lock';
 import { createSupportBundle } from './core/supportBundle';
 import { getTemplateRegistry } from './core/templateRegistry';
 import { scanComponents } from './scanner/componentScanner';
@@ -19,6 +27,7 @@ import { detectProject, parseAemCloudProject } from './scanner/projectDetector';
 
 interface Arguments {
   command: string;
+  target?: string;
   project?: string;
   policy?: string;
   format: 'pretty' | 'json' | 'sarif' | 'csv';
@@ -50,6 +59,12 @@ export function main(argv = process.argv.slice(2)): number {
       case 'doctor':
       case 'validate':
         return doctor(projectRoot, args);
+      case 'preflight':
+        return preflight(projectRoot, args);
+      case 'remediate':
+        return remediate(projectRoot, args);
+      case 'unlock':
+        return unlock(projectRoot, args);
       case 'scan':
         return scan(projectRoot, args);
       case 'plan':
@@ -109,6 +124,54 @@ function doctor(projectRoot: string, args: Arguments): number {
         : formatDoctorReport(report);
   writeOutput(content, args.output);
   return report.summary.passed ? 0 : 1;
+}
+
+function preflight(projectRoot: string, args: Arguments): number {
+  if (args.format === 'sarif' || args.format === 'csv') {
+    throw new Error('Preflight supports pretty or JSON output.');
+  }
+  const config = configExists(projectRoot) ? loadConfigOrNull(projectRoot) : null;
+  const report = runPreflight(projectRoot, config ? { config } : {});
+  writeOutput(args.format === 'json' ? JSON.stringify(report, null, 2) : formatPreflight(report), args.output);
+  return report.summary.passed ? 0 : 1;
+}
+
+function remediate(projectRoot: string, args: Arguments): number {
+  if (!args.target) {
+    const rows = availableRemediations().map(
+      (remediation) =>
+        `${remediation.id.padEnd(30)} ${remediation.safe ? 'safe ' : 'guard'}  ${remediation.title}`,
+    );
+    writeOutput(['Available remediations:', ...rows, '', 'Run: aem-catalog remediate <id> [--yes]'].join('\n'), args.output);
+    return 0;
+  }
+  const config = loadConfigOrNull(projectRoot);
+  const actions = planRemediation(args.target, projectRoot, config);
+  if (!args.yes) {
+    const preview = [
+      `Remediation “${args.target}” would change ${actions.length} file(s) (dry run; pass --yes to apply):`,
+      ...actions.map((change) => `  ${change.kind.toUpperCase().padEnd(6)} ${change.relativePath}`),
+    ];
+    writeOutput(preview.join('\n'), args.output);
+    return actions.length ? 1 : 0;
+  }
+  const result = applyRemediationActions(projectRoot, actions, 'cli');
+  writeOutput(JSON.stringify(result, null, 2), args.output);
+  return 0;
+}
+
+function unlock(projectRoot: string, args: Arguments): number {
+  const cleared = clearStaleLock(projectRoot);
+  writeOutput(cleared ? 'Cleared a stale generation lock.' : 'No stale generation lock was present.', args.output);
+  return 0;
+}
+
+function loadConfigOrNull(projectRoot: string): ComponentLibraryConfig | null {
+  try {
+    return loadConfig(projectRoot);
+  } catch {
+    return null;
+  }
 }
 
 function scan(projectRoot: string, args: Arguments): number {
@@ -189,12 +252,18 @@ function generate(projectRoot: string, args: Arguments): number {
   if (!args.yes) {
     throw new Error('Generation is non-interactive. Review `aem-catalog plan`, then pass --yes to apply.');
   }
-  const report = runDoctor(projectRoot, { policyFile: args.policy });
+  const config = loadConfig(projectRoot);
+  const pre = runPreflight(projectRoot, { config });
+  if (!pre.summary.passed && !args.force) {
+    process.stderr.write(`${formatPreflight(pre)}\n`);
+    throw new Error('Preflight blocked generation. Resolve the failures (see `aem-catalog remediate`) or pass --force.');
+  }
+  const report = runDoctor(projectRoot, { policyFile: args.policy, config });
   if (!report.summary.passed && !args.force) {
     process.stderr.write(`${formatDoctorReport(report)}\n`);
     throw new Error('Cloud Doctor reported errors. Resolve them or explicitly pass --force.');
   }
-  const generationPlan = buildGenerationPlan(projectRoot, loadConfig(projectRoot));
+  const generationPlan = buildGenerationPlan(projectRoot, config);
   const result = applyGenerationPlan(generationPlan, {
     overwriteConflicts: args.force,
     actor: 'cli',
@@ -222,6 +291,8 @@ function parseArguments(argv: string[]): Arguments {
   };
   const values = [...argv];
   if (values[0] && !values[0].startsWith('-')) result.command = values.shift() ?? '';
+  // An optional second positional is a command target (e.g. a remediation id).
+  if (values[0] && !values[0].startsWith('-')) result.target = values.shift();
   while (values.length) {
     const option = values.shift();
     switch (option) {
@@ -301,15 +372,18 @@ function help(): string {
 Usage: aem-catalog <command> [options]
 
 Commands:
-  init         Create v2 configuration and policy defaults (requires --yes)
-  doctor       Validate AEMaaCS structure, governance, and generated drift
-  scan         Inventory components and quality metadata
-  plan         Preview every generated artifact and conflict
-  generate     Apply a reviewed plan transactionally (requires --yes)
-  rollback     Restore the last generation transaction (requires --yes)
-  support      Export a redacted diagnostic bundle as JSON
-  templates    Print the built-in template registry and SHA-256 digest
-  version      Print the CLI version
+  init                 Create v2 configuration and policy defaults (requires --yes)
+  doctor               Validate AEMaaCS structure, governance, and generated drift
+  preflight            Fast pre-generation readiness checks (exit 1 if blocked)
+  remediate [<id>]     List, preview, or apply (--yes) a detect-and-guide fix
+  unlock               Clear a stale generation lock
+  scan                 Inventory components and quality metadata
+  plan                 Preview every generated artifact and conflict
+  generate             Apply a reviewed plan transactionally (requires --yes)
+  rollback             Restore the last generation transaction (requires --yes)
+  support              Export a redacted diagnostic bundle as JSON
+  templates            Print the built-in template registry and SHA-256 digest
+  version              Print the CLI version
 
 Options:
   -p, --project <path>    AEMaaCS project root or containing workspace
