@@ -50,6 +50,13 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => script.includes('forced path system/cq:services/sample-site')),
     ).toBe(true);
+    // The service user must read the components node itself (not just its descendants),
+    // or the servlet's getResource(root) returns null -> 500.
+    expect(
+      parsed.scripts.some((script) =>
+        script.includes('allow jcr:read on /apps restriction(rep:glob,/sample-site/components)'),
+      ),
+    ).toBe(true);
     expect(repoinit.relativePath).toContain('config.author');
     const servlet = plan.items.find((item) => item.kind === 'java')!.content;
     expect(servlet).toContain('getRunModes().contains("author")');

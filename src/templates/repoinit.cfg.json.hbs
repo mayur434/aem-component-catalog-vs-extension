@@ -1,7 +1,7 @@
 {
     "scripts": [
         "create service user {{serviceUserName}} with forced path system/cq:services/{{appId}}",
-        "set ACL for {{serviceUserName}}\n    allow jcr:read on /apps restriction(rep:glob,/{{appId}}/components/*)\n    allow jcr:read on /apps restriction(rep:glob,/{{appId}}/clientlibs/*)\nend",
+        "set ACL for {{serviceUserName}}\n    allow jcr:read on /apps restriction(rep:glob,/{{appId}}/components)\n    allow jcr:read on /apps restriction(rep:glob,/{{appId}}/components/*)\n    allow jcr:read on /apps restriction(rep:glob,/{{appId}}/clientlibs)\n    allow jcr:read on /apps restriction(rep:glob,/{{appId}}/clientlibs/*)\nend",
         "create path (sling:OrderedFolder) /content",
         "create path (sling:Folder) /conf",
         "create path (sling:Folder) /conf/{{appId}}",
