@@ -107,15 +107,13 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       tagsProperty: 'catalogTags',
     },
     // Category = website folder (first segment under components root); Sub Category =
-    // catalogSubCategory property when present, else the AEM componentGroup.
+    // catalogSubCategory property when present, else the AEM componentGroup. No curated
+    // labels by default — an uncurated category key is auto-prettified (e.g. "mysite" ->
+    // "Mysite") by the servlet's prettifyCategory fallback. Projects with multiple brand
+    // folders can add their own mappings here (or per-project in .component-library.json)
+    // for nicer display names.
     taxonomy: {
-      categoryLabels: {
-        campaign: 'Haisha Paints Campaigns',
-        corporate: 'Corporate',
-        haishapaints: 'Haisha Paints',
-        industrialproducts: 'Industrial Products',
-        pigments: 'Pigments',
-      },
+      categoryLabels: {},
       subCategoryProperty: 'catalogSubCategory',
     },
   };
