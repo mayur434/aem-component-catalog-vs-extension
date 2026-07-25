@@ -589,7 +589,20 @@
     /* ====================================================
        INIT
        ==================================================== */
+    /* ------ sticky brand bar: reveal on scroll ------ */
+    function bindTopbar() {
+        var bar = document.getElementById("pcl-topbar");
+        if (!bar) return;
+        var toggle = function () {
+            if (window.pageYOffset > 120) bar.classList.add("pcl-topbar--show");
+            else bar.classList.remove("pcl-topbar--show");
+        };
+        window.addEventListener("scroll", toggle, { passive: true });
+        toggle();
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
+        bindTopbar();
         var pagePath = getPagePath();
         if (!pagePath) return;
 
