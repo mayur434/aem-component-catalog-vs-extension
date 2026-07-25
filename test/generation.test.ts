@@ -73,6 +73,10 @@ describe('transactional generation', () => {
     // Sites use project proxies; usage must follow one level of sling:resourceSuperType.
     expect(usageService).toContain('sling:resourceSuperType');
     expect(usageService).toContain('libraryRelFor');
+    // Only published pages count as usage; drafts never replicated must not inflate counts.
+    expect(usageService).toContain('isPublished');
+    expect(usageService).toContain('cq:lastReplicationAction');
+    expect(usageService).toContain('"Activate".equals(action)');
     const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!.content;
     expect(servlet).toContain('getRunModes().contains("author")');
     expect(servlet).toContain('ResourceChangeListener');
@@ -95,6 +99,14 @@ describe('transactional generation', () => {
     // "Where it's used" opens a scrollable, filterable modal rather than an inline list.
     expect(script).toContain('bindUsageModal');
     expect(script).toContain('renderUsageRows');
+    // Badge/sub-category labels strip the "<App Id> - " prefix at runtime (was a broken,
+    // template-embedded regex that never matched and left raw group text un-stripped).
+    expect(script).toContain('APP_PREFIX_RE');
+    expect(script).toContain('new RegExp("^" + escaped');
+    // Cross-site reuse count and a derived (non-boilerplate) fallback description.
+    expect(script).toContain('computeReuseCounts');
+    expect(script).toContain('fallbackDescription');
+    expect(script).toContain('humanizeSegment');
     // Sort control: default usage high->low, re-orders listing without duplicate listeners.
     expect(script).toContain('getSortMode');
     expect(script).toContain('renderSections');
@@ -110,6 +122,11 @@ describe('transactional generation', () => {
     expect(styles).toContain('.pcl-metric');
     expect(styles).toContain('.pcl-sort__select');
     expect(styles).toContain('.pcl-usage-modal__panel');
+    // Badge color-coding was dead code: an [class*=] fallback selector had higher specificity
+    // than .pcl-card__badge--content/--commerce/etc, so every badge rendered identically.
+    expect(styles).not.toContain('[class*="pcl-card__badge--"]');
+    expect(styles).toContain('.pcl-reuse');
+    expect(styles).toContain('flex-wrap: wrap');
     // The catalog page must extend the WCM core page so it renders in any project.
     const pageDef = plan.items.find((item) =>
       item.relativePath.endsWith('page/componentlibrary/.content.xml'),

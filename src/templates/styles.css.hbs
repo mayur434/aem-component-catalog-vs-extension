@@ -491,8 +491,8 @@
     max-width: 45%;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-.pcl-card__badge[class*="pcl-card__badge--"] {
+    /* Default (matches .pcl-card__badge--content); the type-specific rules below share this
+       selector's specificity, so later source order lets them win for known group types. */
     background: var(--pcl-badge-content, #E3F0FD);
     color: var(--pcl-badge-content-text, {{brand.primary}});
 }
@@ -515,7 +515,8 @@
 .pcl-card__meta {
     display: flex;
     align-items: center;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 8px 16px;
     padding-top: 16px;
     border-top: 1px solid var(--pcl-border-light);
     font-size: 12px;
@@ -525,6 +526,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
 }
 .pcl-card__meta-item svg {
     width: 14px;
@@ -1459,6 +1461,8 @@
 .pcl-usage svg { color: var(--pcl-primary); }
 .pcl-usage--none { color: var(--pcl-text-muted); font-weight: 500; }
 .pcl-usage--none svg { color: var(--pcl-text-muted); }
+.pcl-reuse { color: var(--pcl-badge-commerce-text, #7C3AED); font-weight: 600; }
+.pcl-reuse svg { color: var(--pcl-badge-commerce-text, #7C3AED); }
 .pcl-usage-card { margin-top: 28px; padding: 22px 24px; background: var(--pcl-surface); border: 1px solid var(--pcl-border-light); border-radius: var(--pcl-radius-lg); box-shadow: var(--pcl-shadow-sm); }
 .pcl-usage-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .pcl-usage-card__title { font-size: 16px; font-weight: 700; color: var(--pcl-text); margin: 0; display: flex; align-items: center; gap: 10px; }

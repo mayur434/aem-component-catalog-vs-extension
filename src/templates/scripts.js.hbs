@@ -10,16 +10,28 @@
 
     /* Full catalog dataset, shared between listing, facets, and detail relationships. */
     var catalogData = null;
+    /* leaf component name -> count of distinct categories (sites) instantiating it. */
+    var reuseCounts = {};
 
     /* ------ helpers ------ */
     function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
-    function groupSlug(g) {
-        return g.replace(/^{{replace appId "-" "[-\\\\s]"}}\\s*[-\\u2013\\u2014]\\s*/i, "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
-    }
+    /* Strips a leading "<App Id> - " prefix (dash/space tolerant, any dash glyph) from group
+       labels like "Pidilite Component Library - Content" -> "Content". Built from {{appId}} at
+       runtime rather than embedded as template-generated regex source, which is fragile to escape. */
+    var APP_PREFIX_RE = (function () {
+        var escaped = String({{json appId}}).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[-\s]+/g, "[-\\s]+");
+        return new RegExp("^" + escaped + "\\s*[-\\u2013\\u2014]\\s*", "i");
+    })();
 
     function groupLabel(g) {
-        return g.replace(/^{{replace appId "-" "[-\\\\s]"}}\\s*[-\\u2013\\u2014]\\s*/i, "").trim();
+        var s = String(g == null ? "" : g);
+        var stripped = s.replace(APP_PREFIX_RE, "").trim();
+        return stripped || s.trim();
+    }
+
+    function groupSlug(g) {
+        return groupLabel(g).toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
     }
 
     function badgeClass(g) {
@@ -83,6 +95,46 @@
         return groupLabel(String(sub == null ? "" : sub));
     }
 
+    /* How broadly a component is adopted across the brand portfolio: distinct categories
+       (sites) that contain a component with the same leaf name. Recomputed whenever the
+       full dataset is (re)rendered; cheap for catalog-sized component counts. */
+    function computeReuseCounts(components) {
+        var byLeaf = {};
+        for (var i = 0; i < components.length; i++) {
+            var c = components[i];
+            var leaf = String(c.name || "").split("/").pop();
+            if (!byLeaf[leaf]) byLeaf[leaf] = {};
+            byLeaf[leaf][c.category || ""] = true;
+        }
+        var counts = {};
+        for (var leaf2 in byLeaf) {
+            if (byLeaf.hasOwnProperty(leaf2)) counts[leaf2] = Object.keys(byLeaf[leaf2]).length;
+        }
+        return counts;
+    }
+
+    /* "customProductTeaser" / "custom-product-teaser" / "custom_product_teaser" -> "Custom Product Teaser". */
+    function humanizeSegment(seg) {
+        var spaced = String(seg || "")
+            .replace(/[_-]+/g, " ")
+            .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+            .replace(/\s+/g, " ")
+            .trim();
+        return spaced.replace(/\S+/g, function (w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); });
+    }
+
+    /* Most components ship without an authored jcr:description; a single repeated boilerplate
+       sentence on most cards reads as broken UI. Derive a real, per-component sentence instead:
+       the folder grouping when there is one, otherwise the type + site. */
+    function fallbackDescription(comp, category, sub) {
+        var segments = String(comp.name || "").split("/");
+        var middle = segments.slice(1, -1).map(humanizeSegment).filter(Boolean);
+        if (middle.length > 0) {
+            return "Part of the " + middle.join(" › ") + " component set in " + category + ".";
+        }
+        return "A " + groupLabel(sub || comp.group || "Content") + " component for " + category + ".";
+    }
+
     function renderCard(comp, pagePath, category, sub) {
         var href = pagePath + ".html/" + encodeURIComponent(comp.name);
         var hasThumbnail = !!comp.thumbnailPath;
@@ -95,11 +147,15 @@
         }
         html += '<div class="pcl-card__body">';
         html += '<div class="pcl-card__header"><h3 class="pcl-card__title">' + esc(comp.title) + '</h3><span class="pcl-card__badge ' + badgeClass(comp.group) + '">' + esc(subLabel(sub)) + "</span></div>";
-        html += '<p class="pcl-card__desc">' + (comp.description ? esc(comp.description) : "Component \u2014 click for details and documentation.") + "</p>";
+        html += '<p class="pcl-card__desc">' + esc(comp.description || fallbackDescription(comp, category, sub)) + "</p>";
         html += '<div class="pcl-card__meta">';
         html += '<span class="pcl-card__meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>' + esc(category) + " \u203a " + esc(subLabel(sub)) + "</span>";
         var uc = comp.usageCount || 0;
         html += '<span class="pcl-card__meta-item pcl-usage' + (uc > 0 ? "" : " pcl-usage--none") + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' + (uc > 0 ? (uc + (uc === 1 ? " page" : " pages")) : "Unused") + "</span>";
+        var reuse = reuseCounts[String(comp.name || "").split("/").pop()] || 1;
+        if (reuse > 1) {
+            html += '<span class="pcl-card__meta-item pcl-reuse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>Used in ' + reuse + ' sites</span>';
+        }
         if (comp.layouts && comp.layouts.length > 0) {
             html += '<span class="pcl-card__meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' + comp.layouts.length + ' example' + (comp.layouts.length > 1 ? 's' : '') + '</span>';
         }
@@ -108,6 +164,7 @@
     }
 
     function renderListing(data) {
+        reuseCounts = computeReuseCounts(data.components || []);
         var pagePath = getPagePath();
         var main = document.getElementById("pcl-main");
         var toolbar = document.getElementById("pcl-toolbar");
