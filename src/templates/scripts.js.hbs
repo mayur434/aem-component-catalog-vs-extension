@@ -98,18 +98,9 @@
         html += '<p class="pcl-card__desc">' + (comp.description ? esc(comp.description) : "Component \u2014 click for details and documentation.") + "</p>";
         html += '<div class="pcl-card__meta">';
         html += '<span class="pcl-card__meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>' + esc(category) + " \u203a " + esc(subLabel(sub)) + "</span>";
-        if (comp.hasDialog) {
-            html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>Dialog</span></span>';
-        }
-        if (comp.readmePath) {
-            html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>README</span></span>';
-        }
         if (comp.layouts && comp.layouts.length > 0) {
-            html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>' + comp.layouts.length + ' Layout' + (comp.layouts.length > 1 ? 's' : '') + '</span></span>';
+            html += '<span class="pcl-card__meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' + comp.layouts.length + ' example' + (comp.layouts.length > 1 ? 's' : '') + '</span>';
         }
-        {{#if features.qualityScore}}
-        html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--' + (comp.qualityScore >= 70 ? "yes" : "no") + '"></span>' + esc(comp.qualityScore) + '/100</span></span>';
-        {{/if}}
         html += "</div></div></a>";
         return html;
     }
@@ -137,8 +128,10 @@
         }
         pillsContainer.innerHTML = pillsHtml;
 
+        {{#if features.qualityScore}}
         renderFacets(data.components);
         renderMetrics(data);
+        {{/if}}
 
         // Group components: Category (website) -> Sub Category -> [components].
         var byCategory = {};
@@ -362,28 +355,25 @@
         html += "</div>";
 
         html += '<div class="pcl-detail__grid">';
-        html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Component Info</h3>';
-        html += infoRow("Name", "<code>" + esc(comp.name) + "</code>");
-        html += infoRow("Resource Type", "<code>" + esc(comp.resourceType) + "</code>");
-        html += infoRow("Super Type", comp.superType ? "<code>" + esc(comp.superType) + "</code>" : "\u2014");
+        html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Overview</h3>';
         html += infoRow("Category", esc(comp.category || "General"));
-        html += infoRow("Sub Category", esc(subLabel(comp.subCategory || comp.group)));
-        html += infoRow("Group", esc(comp.group));
-        html += infoRow("Owner", esc(comp.owner || "Unowned"));
-        html += infoRow("Status", esc(comp.status || "Unset"));
-        html += infoRow("Version", esc(comp.version || "Unset"));
+        html += infoRow("Sub category", esc(subLabel(comp.subCategory || comp.group)));
+        html += infoRow("Authoring options", esc((comp.dialogFields || []).length));
+        html += infoRow("Example images", esc((comp.layouts || []).length));
+        html += infoRow("Resource type", "<code>" + esc(comp.resourceType) + "</code>");
         html += "</div>";
-        html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Capabilities</h3>';
-        html += infoRow("Container", statusDot(comp.isContainer));
-        html += infoRow("Author Dialog", statusDot(comp.hasDialog));
-        html += infoRow("Dialog Fields", esc((comp.dialogFields || []).length));
-        html += infoRow("Design Dialog", statusDot(comp.hasDesignDialog));
-        html += infoRow("Edit Config", statusDot(comp.hasEditConfig));
-        html += infoRow("README", statusDot(!!comp.readmePath));
-        html += infoRow("Layouts", statusDot(comp.layouts && comp.layouts.length > 0));
-        {{#if features.qualityScore}}
-        html += infoRow("Quality", "<strong>" + esc(comp.qualityScore) + "/100 (" + esc(comp.qualityGrade) + ")</strong>");
-        {{/if}}
+        html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Authoring options</h3>';
+        if (comp.dialogFields && comp.dialogFields.length > 0) {
+            html += '<ul class="pcl-fields">';
+            for (var fi = 0; fi < comp.dialogFields.length; fi++) {
+                var fld = comp.dialogFields[fi];
+                html += '<li class="pcl-fields__item"><span class="pcl-fields__name">' + esc(fld.label || fld.name || "Option") + "</span>" +
+                    (fld.required ? '<span class="pcl-fields__req">required</span>' : "") + "</li>";
+            }
+            html += "</ul>";
+        } else {
+            html += '<p class="pcl-fields__empty">No configurable options \u2014 this component renders as-is.</p>';
+        }
         html += "</div></div>";
 
         html += relationshipsSection(comp, pagePath);

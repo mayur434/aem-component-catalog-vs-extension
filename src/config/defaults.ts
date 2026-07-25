@@ -43,7 +43,10 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       codeSnippets: true,
       readme: true,
       darkMode: false,
-      qualityScore: true,
+      // Governance view (quality metrics strip + Status/Owner/Quality facets). Off by
+      // default: the catalog is a designer/business-facing showcase, not a scorecard.
+      // Toggle "Quality metrics" on in the config panel for the governance view.
+      qualityScore: false,
       dependencyGraph: true,
       accessibility: true,
     },

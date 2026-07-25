@@ -1291,3 +1291,35 @@
         margin-left: 0;
     }
 }
+
+/* Authoring options list (designer-facing detail view) */
+.pcl-fields {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.pcl-fields__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--pcl-surface-alt);
+    border: 1px solid var(--pcl-border-light);
+    border-radius: var(--pcl-radius-sm);
+    font-size: 13px;
+}
+.pcl-fields__name { font-weight: 500; color: var(--pcl-text); }
+.pcl-fields__req {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--pcl-primary);
+    background: var(--pcl-badge-content);
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+.pcl-fields__empty { color: var(--pcl-text-muted); font-size: 13px; margin: 0; }
