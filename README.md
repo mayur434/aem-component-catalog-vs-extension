@@ -1,6 +1,6 @@
-# AEM Component Catalog Enterprise
+# AEM Component Catalog
 
-Enterprise component discovery, governance, and safe catalog generation for **Adobe Experience Manager as a Cloud Service (AEMaaCS) only**.
+Configure, generate, and deploy a browsable component showcase for **Adobe Experience Manager as a Cloud Service (AEMaaCS) only**. Component discovery, governance, and safe generation tooling are available as advanced/optional features.
 
 The project includes both a VS Code extension and the `aem-catalog` headless CLI. They use the same validation, policy, planning, and transaction engine, so local development and CI produce the same result.
 
@@ -33,11 +33,9 @@ AEM 6.5, Adobe Managed Services, and on-premise projects are intentionally unsup
 ## Quick start in VS Code
 
 1. Open the AEMaaCS reactor or a workspace containing one or more reactors.
-2. Run **AEM Component Catalog: Init**.
-3. Add governance metadata to component definitions.
-4. Run **AEM Component Catalog: Run AEM Cloud Doctor**.
-5. Run **Preview**, review every planned change, then run **Generate**.
-6. Build the AEM project and validate it in the local AEM SDK before committing.
+2. Run **AEM Component Catalog: Configure & Generate Micro-site** (or open it from the status bar dashboard). It writes sensible defaults on first run — nothing to hand-edit.
+3. Deploy to local AEM from the same panel, then open the generated catalog page on Author.
+4. (Advanced, optional) Add governance metadata to component definitions and run **AEM Component Catalog: (Advanced) Run AEM Cloud Doctor** for a portfolio-wide health check — this never blocks generation.
 
 Generation is disabled in an untrusted workspace. The extension never silently overwrites manually changed files.
 

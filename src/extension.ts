@@ -1,12 +1,10 @@
 /**
- * AEM Component Catalog Enterprise — VS Code extension entry point.
+ * AEM Component Catalog — VS Code extension entry point.
  */
 import * as vscode from 'vscode';
-import { initCommand } from './commands/init';
 import { openConfigPanel } from './webview/configPanel';
 import { generateCommand } from './commands/generate';
 import { deployLocalCommand } from './commands/deploy';
-import { updateCommand } from './commands/update';
 import { previewCommand } from './commands/preview';
 import { scanCommand } from './commands/scan';
 import { doctorCommand } from './commands/doctor';
@@ -34,13 +32,6 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('aemComponentLibrary.init', async (projectRoot?: string) => {
-      await initCommand(projectRoot);
-      refreshAll();
-    }),
-    vscode.commands.registerCommand('aemComponentLibrary.createMicrosite', () =>
-      openConfigPanel(context, refreshAll),
-    ),
     vscode.commands.registerCommand('aemComponentLibrary.configure', () =>
       openConfigPanel(context, refreshAll),
     ),
@@ -50,10 +41,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('aemComponentLibrary.generate', async (projectRoot?: string) => {
       await generateCommand(projectRoot);
-      refreshAll();
-    }),
-    vscode.commands.registerCommand('aemComponentLibrary.update', async (projectRoot?: string) => {
-      await updateCommand(projectRoot);
       refreshAll();
     }),
     vscode.commands.registerCommand('aemComponentLibrary.preview', (projectRoot?: string) =>
@@ -82,7 +69,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Status bar item
   const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusItem.text = '$(layers) AEM CL';
-  statusItem.tooltip = 'AEM Component Catalog Enterprise';
+  statusItem.tooltip = 'AEM Component Catalog';
   statusItem.command = 'aemComponentLibrary.openDashboard';
   statusItem.show();
   context.subscriptions.push(statusItem);

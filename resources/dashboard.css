@@ -81,7 +81,7 @@ h3 span,
 }
 .metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(100px, 1fr));
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
   gap: 10px;
   margin: 22px 0;
 }
@@ -117,11 +117,47 @@ h3 span,
 .path {
   word-break: break-all;
 }
+.stats {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin: 15px 0 20px;
+}
+.advanced {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.advanced summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  list-style: none;
+}
+.advanced summary::-webkit-details-marker {
+  display: none;
+}
+.advanced summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.1s;
+}
+.advanced[open] summary::before {
+  transform: rotate(90deg);
+}
+.advanced summary .muted {
+  font-weight: normal;
+  color: var(--muted);
+}
+.advanced-body {
+  padding-top: 14px;
 }
 button {
   padding: 7px 11px;

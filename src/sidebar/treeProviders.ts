@@ -137,9 +137,14 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
 
   private buildComponentTree(project: ProjectInfo): ComponentTreeItem[] {
     let result: ScanResult;
+    let showQuality = false;
     try {
       const config = configExists(project.root) ? loadConfig(project.root) : getDefaults(project.artifactId);
       result = scanComponents(project.root, config);
+      // Quality scores only show here when the project opted into the "Quality metrics"
+      // feature — the catalog itself is a showcase by default, not a scorecard, and the
+      // sidebar should read the same way.
+      showQuality = Boolean(config.features.qualityScore);
     } catch {
       return [new ComponentTreeItem('Scan failed', 'warning')];
     }
@@ -150,7 +155,9 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
 
     // Summary node
     const summary = new ComponentTreeItem(
-      `${result.total} components · quality ${result.averageQualityScore}/100`,
+      showQuality
+        ? `${result.total} components · quality ${result.averageQualityScore}/100`
+        : `${result.total} components · ${Object.keys(result.groups).length} categories`,
       'info',
     );
 
@@ -164,17 +171,19 @@ export class ComponentsProvider implements vscode.TreeDataProvider<ComponentTree
         groupItem.children = result.components
           .filter((c) => c.group === group)
           .sort((a, b) => a.title.localeCompare(b.title))
-          .map((c) => this.buildComponentItem(c));
+          .map((c) => this.buildComponentItem(c, showQuality));
         return groupItem;
       });
 
     return [summary, ...groupNodes];
   }
 
-  private buildComponentItem(comp: ScannedComponent): ComponentTreeItem {
+  private buildComponentItem(comp: ScannedComponent, showQuality: boolean): ComponentTreeItem {
     const icon = comp.hasDialog ? 'symbol-class' : 'symbol-interface';
     const item = new ComponentTreeItem(comp.title, icon);
-    item.description = `${comp.quality.score}/100 · ${comp.status || 'unset'}`;
+    item.description = showQuality
+      ? `${comp.quality.score}/100 · ${comp.status || 'unset'}`
+      : comp.status || 'unset';
     item.tooltip = [
       comp.title,
       `Resource Type: ${comp.resourceType}`,

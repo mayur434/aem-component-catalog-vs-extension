@@ -17,26 +17,19 @@ interface DashboardProject {
   findings: DoctorFinding[];
   errors: number;
   warnings: number;
-  passed: boolean;
 }
 
 type DashboardAction =
-  | 'init'
-  | 'generate'
-  | 'update'
+  | 'deployLocal'
   | 'preview'
-  | 'scan'
   | 'doctor'
   | 'rollback'
   | 'exportSupportBundle'
   | 'openConfig';
 
 const allowedActions = new Set<DashboardAction>([
-  'init',
-  'generate',
-  'update',
+  'deployLocal',
   'preview',
-  'scan',
   'doctor',
   'rollback',
   'exportSupportBundle',
@@ -50,8 +43,8 @@ export function openDashboard(context: vscode.ExtensionContext, onRefresh?: () =
   }
   const resources = vscode.Uri.joinPath(context.extensionUri, 'resources');
   const panel = vscode.window.createWebviewPanel(
-    'aemEnterpriseCatalogDashboard',
-    'AEMaaCS Component Catalog',
+    'aemCatalogDashboard',
+    'AEM Component Catalog',
     vscode.ViewColumn.One,
     {
       enableScripts: true,
@@ -80,12 +73,7 @@ export function openDashboard(context: vscode.ExtensionContext, onRefresh?: () =
         return;
       }
       if (message.action === 'openConfig') {
-        const file = vscode.Uri.joinPath(vscode.Uri.file(project.root), '.component-library.json');
-        if (!configExists(project.root)) {
-          await vscode.commands.executeCommand('aemComponentLibrary.init', project.root);
-        } else {
-          await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file));
-        }
+        await vscode.commands.executeCommand('aemComponentLibrary.configure');
       } else {
         await vscode.commands.executeCommand(`aemComponentLibrary.${message.action}`, project.root);
       }
@@ -111,7 +99,6 @@ function dashboardData(): DashboardProject[] {
     let findings: DoctorFinding[] = [];
     let errors = 0;
     let warnings = 0;
-    let passed = false;
     try {
       const config = configured ? loadConfig(info.root) : getDefaults(info.artifactId);
       scan = scanComponents(info.root, config);
@@ -119,7 +106,6 @@ function dashboardData(): DashboardProject[] {
       findings = report.findings.slice(0, 8);
       errors = report.summary.errors;
       warnings = report.summary.warnings;
-      passed = report.summary.passed;
     } catch (error) {
       findings = [
         {
@@ -131,7 +117,7 @@ function dashboardData(): DashboardProject[] {
       ];
       errors = 1;
     }
-    return { id: projectId(info.root), info, configured, scan, findings, errors, warnings, passed };
+    return { id: projectId(info.root), info, configured, scan, findings, errors, warnings };
   });
 }
 
@@ -146,13 +132,11 @@ function renderDashboard(
   const totals = projects.reduce(
     (result, project) => ({
       components: result.components + project.scan.total,
-      errors: result.errors + project.errors,
-      warnings: result.warnings + project.warnings,
-      quality: result.quality + project.scan.averageQualityScore,
+      categories: result.categories + Object.keys(project.scan.groups).length,
+      configured: result.configured + (project.configured ? 1 : 0),
     }),
-    { components: 0, errors: 0, warnings: 0, quality: 0 },
+    { components: 0, categories: 0, configured: 0 },
   );
-  const averageQuality = projects.length ? Math.round(totals.quality / projects.length) : 0;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -160,24 +144,23 @@ function renderDashboard(
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="${css}">
-  <title>AEMaaCS Component Catalog</title>
+  <title>AEM Component Catalog</title>
 </head>
 <body>
   <header class="hero">
     <div>
       <p class="eyebrow">AEM AS A CLOUD SERVICE</p>
-      <h1>Enterprise Component Catalog</h1>
-      <p class="subtitle">Governance, generation safety, and Cloud readiness from one workspace.</p>
+      <h1>Component Catalog</h1>
+      <p class="subtitle">Configure, generate, and deploy your team's component showcase.</p>
     </div>
     <span class="trust ${vscode.workspace.isTrusted ? 'ok' : 'blocked'}">${vscode.workspace.isTrusted ? 'Workspace trusted' : 'Restricted mode'}</span>
   </header>
   <main>
-    <section class="metrics" aria-label="Portfolio summary">
+    <section class="metrics" aria-label="Workspace summary">
       ${metric('Projects', projects.length)}
+      ${metric('Configured', `${totals.configured}/${projects.length}`)}
       ${metric('Components', totals.components)}
-      ${metric('Avg. quality', `${averageQuality}/100`)}
-      ${metric('Errors', totals.errors, totals.errors ? 'bad' : 'good')}
-      ${metric('Warnings', totals.warnings, totals.warnings ? 'warn' : 'good')}
+      ${metric('Categories', totals.categories)}
     </section>
     ${projects.length ? projects.map(projectCard).join('\n') : emptyState()}
   </main>
@@ -187,12 +170,8 @@ function renderDashboard(
 }
 
 function projectCard(project: DashboardProject): string {
-  const status = !project.configured
-    ? 'Not configured'
-    : project.passed
-      ? 'Cloud Doctor passed'
-      : 'Action required';
-  const statusClass = !project.configured ? 'warn' : project.passed ? 'good' : 'bad';
+  const status = project.configured ? 'Configured' : 'Not configured yet';
+  const statusClass = project.configured ? 'good' : 'warn';
   const componentRows = project.scan.components
     .slice(0, 100)
     .map(
@@ -213,7 +192,10 @@ function projectCard(project: DashboardProject): string {
           </li>`,
         )
         .join('')
-    : '<li class="finding info"><span>PASS</span><div><strong>No policy findings</strong></div></li>';
+    : '<li class="finding info"><span>PASS</span><div><strong>No Cloud Doctor findings</strong></div></li>';
+  const findingSummary = project.errors || project.warnings
+    ? `${project.errors} error${project.errors === 1 ? '' : 's'} · ${project.warnings} warning${project.warnings === 1 ? '' : 's'}`
+    : 'All clear';
   return `<article class="project">
     <div class="project-heading">
       <div>
@@ -223,34 +205,42 @@ function projectCard(project: DashboardProject): string {
       </div>
       <span class="status ${statusClass}">${status}</span>
     </div>
+    <div class="stats">${project.scan.total} component${project.scan.total === 1 ? '' : 's'} · ${Object.keys(project.scan.groups).length} categor${Object.keys(project.scan.groups).length === 1 ? 'y' : 'ies'}</div>
     <div class="actions" data-project="${project.id}">
-      <button data-action="${project.configured ? 'openConfig' : 'init'}">${project.configured ? 'Open configuration' : 'Initialize'}</button>
-      <button data-action="doctor">Run Cloud Doctor</button>
+      <button data-action="openConfig" class="primary">Configure &amp; Generate</button>
+      <button data-action="deployLocal">Deploy to Local AEM</button>
       <button data-action="preview">Preview plan</button>
-      <button data-action="generate" class="primary">Generate</button>
-      <button data-action="rollback">Rollback</button>
-      <button data-action="exportSupportBundle">Support bundle</button>
     </div>
-    <div class="project-grid">
-      <section>
-        <h3>Governance findings <span>${project.errors} errors · ${project.warnings} warnings</span></h3>
-        <ul class="findings">${findingRows}</ul>
-      </section>
-      <section>
-        <h3>Component portfolio <span>${project.scan.total} total · ${project.scan.averageQualityScore}/100</span></h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Resource type</th><th>Owner</th><th>Status</th><th>Quality</th></tr></thead>
-            <tbody>${componentRows || '<tr><td colspan="4">No components discovered.</td></tr>'}</tbody>
-          </table>
+    <details class="advanced">
+      <summary>Advanced <span class="muted">— rollback, Cloud Doctor, support bundle</span></summary>
+      <div class="advanced-body">
+        <div class="actions" data-project="${project.id}">
+          <button data-action="rollback">Roll back last generation</button>
+          <button data-action="doctor">Run Cloud Doctor</button>
+          <button data-action="exportSupportBundle">Export support bundle</button>
         </div>
-      </section>
-    </div>
+        <div class="project-grid">
+          <section>
+            <h3>Cloud Doctor <span>${findingSummary}</span></h3>
+            <ul class="findings">${findingRows}</ul>
+          </section>
+          <section>
+            <h3>Component detail <span>${project.scan.total} total</span></h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Resource type</th><th>Owner</th><th>Status</th><th>Quality</th></tr></thead>
+                <tbody>${componentRows || '<tr><td colspan="4">No components discovered.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </details>
   </article>`;
 }
 
-function metric(label: string, value: string | number, tone = ''): string {
-  return `<div class="metric ${tone}"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`;
+function metric(label: string, value: string | number): string {
+  return `<div class="metric"><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`;
 }
 
 function emptyState(): string {

@@ -1,7 +1,7 @@
 {
   "name": "aem-component-library-generator",
-  "displayName": "AEM Component Catalog Enterprise",
-  "description": "Enterprise component catalog, governance, and Cloud readiness tooling for AEM as a Cloud Service.",
+  "displayName": "AEM Component Catalog",
+  "description": "Configure, generate, and deploy a browsable component showcase for your AEM as a Cloud Service project.",
   "version": "2.0.0",
   "publisher": "pidilite",
   "license": "MIT",
@@ -25,12 +25,9 @@
   "activationEvents": [
     "workspaceContains:pom.xml",
     "workspaceContains:*/pom.xml",
-    "onCommand:aemComponentLibrary.init",
-    "onCommand:aemComponentLibrary.createMicrosite",
     "onCommand:aemComponentLibrary.configure",
     "onCommand:aemComponentLibrary.deployLocal",
     "onCommand:aemComponentLibrary.generate",
-    "onCommand:aemComponentLibrary.update",
     "onCommand:aemComponentLibrary.preview",
     "onCommand:aemComponentLibrary.scan",
     "onCommand:aemComponentLibrary.doctor",
@@ -101,28 +98,13 @@
         "icon": "$(cloud-upload)"
       },
       {
-        "command": "aemComponentLibrary.createMicrosite",
-        "title": "AEM Component Catalog: Create Micro-site",
-        "icon": "$(rocket)"
-      },
-      {
-        "command": "aemComponentLibrary.init",
-        "title": "AEM Component Catalog: Init",
-        "icon": "$(gear)"
-      },
-      {
         "command": "aemComponentLibrary.generate",
-        "title": "AEM Component Catalog: Generate",
+        "title": "AEM Component Catalog: Generate (Use Existing Config)",
         "icon": "$(play)"
       },
       {
-        "command": "aemComponentLibrary.update",
-        "title": "AEM Component Catalog: Update",
-        "icon": "$(refresh)"
-      },
-      {
         "command": "aemComponentLibrary.preview",
-        "title": "AEM Component Catalog: Preview",
+        "title": "AEM Component Catalog: Preview Generation Plan",
         "icon": "$(eye)"
       },
       {
@@ -142,7 +124,7 @@
       },
       {
         "command": "aemComponentLibrary.doctor",
-        "title": "AEM Component Catalog: Run AEM Cloud Doctor",
+        "title": "AEM Component Catalog: (Advanced) Run AEM Cloud Doctor",
         "icon": "$(shield)"
       },
       {
@@ -152,7 +134,7 @@
       },
       {
         "command": "aemComponentLibrary.exportSupportBundle",
-        "title": "AEM Component Catalog: Export Redacted Support Bundle",
+        "title": "AEM Component Catalog: (Advanced) Export Redacted Support Bundle",
         "icon": "$(export)"
       }
     ],

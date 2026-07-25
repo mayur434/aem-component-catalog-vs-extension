@@ -26,16 +26,26 @@ const PRIMARY_SWATCHES = ['#03438E', '#0A66C2', '#005289', '#1D6B3F', '#7A1F2B',
 const ACCENT_SWATCHES = ['#4CADE9', '#00ABE8', '#FFD700', '#4CAF50', '#FF7043', '#9C27B0', '#26C6DA', '#F4A62A'];
 const BACKGROUND_SWATCHES = ['#F4F7FB', '#FFFFFF', '#F5F5F7', '#0F1115', '#1E1E1E', '#FAF6EF'];
 const DEFAULT_SUBCATEGORY = 'catalogSubCategory';
-const FEATURES: Array<{ key: keyof ComponentLibraryConfig['features']; label: string; hint: string }> = [
-  { key: 'search', label: 'Search bar', hint: 'Full-text search across components' },
-  { key: 'groupFilters', label: 'Category filters', hint: 'Filter pills by website/category' },
-  { key: 'lightbox', label: 'Screenshot lightbox', hint: 'Zoomable layout previews' },
-  { key: 'codeSnippets', label: 'Code snippets', hint: 'Copy-ready HTL usage' },
-  { key: 'readme', label: 'README docs', hint: 'Render component READMEs' },
-  { key: 'qualityScore', label: 'Quality metrics', hint: 'Quality strip + per-card score' },
-  { key: 'dependencyGraph', label: 'Relationships', hint: 'Super-type siblings on detail pages' },
-  { key: 'accessibility', label: 'Accessibility notes', hint: 'A11y guidance section' },
-  { key: 'darkMode', label: 'Dark mode', hint: 'Dark theme toggle in the site' },
+const FEATURES: Array<{
+  key: keyof ComponentLibraryConfig['features'];
+  label: string;
+  hint: string;
+  group: 'core' | 'governance';
+}> = [
+  { key: 'search', label: 'Search bar', hint: 'Full-text search across components', group: 'core' },
+  { key: 'groupFilters', label: 'Category filters', hint: 'Filter pills by website/category', group: 'core' },
+  { key: 'lightbox', label: 'Screenshot lightbox', hint: 'Zoomable layout previews', group: 'core' },
+  { key: 'codeSnippets', label: 'Code snippets', hint: 'Copy-ready HTL usage', group: 'core' },
+  { key: 'readme', label: 'README docs', hint: 'Render component READMEs', group: 'core' },
+  { key: 'dependencyGraph', label: 'Relationships', hint: 'Super-type siblings on detail pages', group: 'core' },
+  { key: 'accessibility', label: 'Accessibility notes', hint: 'A11y guidance section', group: 'core' },
+  { key: 'darkMode', label: 'Dark mode', hint: 'Dark theme toggle in the site', group: 'core' },
+  {
+    key: 'qualityScore',
+    label: 'Quality metrics',
+    hint: 'Adds a quality score badge to every card — most showcases skip this',
+    group: 'governance',
+  },
 ];
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const JCR_PROPERTY = /^[a-zA-Z_][a-zA-Z0-9:_-]*$/;
@@ -349,8 +359,9 @@ function render(): string {
 <body>
 <div class="wrap">
   <header>
-    <h1>Component Catalog</h1>
-    <p class="sub">Set your options and generate the micro-site. Nothing to hand-edit.</p>
+    <p class="eyebrow">AEM COMPONENT CATALOG</p>
+    <h1>Configure &amp; Generate</h1>
+    <p class="sub">Pick your options below — no JSON to hand-edit. Generating never blocks on Cloud Doctor or governance checks.</p>
   </header>
 
   <section class="card" id="noproject" hidden><p>No AEM as a Cloud Service project was found in this workspace.</p></section>
@@ -384,6 +395,14 @@ function render(): string {
       <div class="swatches" id="accent"></div>
       <label class="field-label spaced">Background</label>
       <div class="swatches" id="background"></div>
+      <label class="field-label spaced">Preview</label>
+      <div class="preview" id="preview">
+        <div class="preview-hero">
+          <span class="preview-badge" id="previewBadge">Pidilite</span>
+          <strong id="previewTitle">Component Catalog</strong>
+          <span class="preview-btn" id="previewBtn">Browse components</span>
+        </div>
+      </div>
     </section>
 
     <section class="card">
@@ -396,6 +415,10 @@ function render(): string {
     <section class="card">
       <h2>Features</h2>
       <div class="toggles" id="features"></div>
+      <div class="governance">
+        <label class="field-label spaced">Governance <span class="muted">(optional)</span></label>
+        <div class="toggles" id="governanceFeatures"></div>
+      </div>
     </section>
 
     <div class="footer">
@@ -417,6 +440,7 @@ function styles(): string {
 *{box-sizing:border-box}
 body{font-family:var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-editor-background);margin:0;font-size:13px}
 .wrap{max-width:760px;margin:0 auto;padding:26px 24px 70px}
+.eyebrow{margin:0 0 4px;color:var(--vscode-textLink-foreground,#4CADE9);font-size:10px;font-weight:700;letter-spacing:.14em}
 header h1{font-size:22px;margin:0 0 4px}
 .sub{color:var(--vscode-descriptionForeground);margin:0 0 20px}
 .card{background:var(--vscode-editorWidget-background,rgba(127,127,127,.08));border:1px solid var(--vscode-widget-border,rgba(127,127,127,.25));border-radius:10px;padding:16px 18px;margin-bottom:14px}
@@ -437,6 +461,11 @@ select{width:100%;padding:8px 10px;border-radius:6px;background:var(--vscode-dro
 .picker{width:36px;height:36px;padding:0;border:none;border-radius:9px;overflow:hidden;cursor:pointer;background:none;outline:1px dashed rgba(127,127,127,.5)}
 .picker::-webkit-color-swatch-wrapper{padding:0}
 .picker::-webkit-color-swatch{border:none;border-radius:9px}
+.preview{border-radius:8px;overflow:hidden;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.3))}
+.preview-hero{display:flex;align-items:center;gap:12px;padding:18px 16px;transition:background-color .15s}
+.preview-badge{padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.04em;background:rgba(255,255,255,.22);color:inherit}
+.preview-hero strong{flex:1;font-size:15px}
+.preview-btn{padding:6px 12px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(255,255,255,.9);color:#111}
 .pills{display:flex;flex-wrap:wrap;gap:8px}
 .pills.small{margin-top:10px}
 .pill{padding:6px 12px;border-radius:20px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.35));background:transparent;color:var(--vscode-foreground);cursor:pointer;font:inherit;font-size:12px}
@@ -450,13 +479,16 @@ select{width:100%;padding:8px 10px;border-radius:6px;background:var(--vscode-dro
 .toggle .meta{display:flex;flex-direction:column;gap:1px}
 .toggle .meta b{font-weight:600}
 .toggle .meta small{color:var(--vscode-descriptionForeground)}
+.governance{margin-top:16px;padding-top:14px;border-top:1px dashed var(--vscode-widget-border,rgba(127,127,127,.3))}
+.governance .toggle{opacity:.85}
 .ghost{padding:6px 12px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.4));border-radius:6px;background:transparent;color:var(--vscode-foreground);cursor:pointer;font:inherit;font-size:12px}
 .ghost:hover{border-color:var(--vscode-focusBorder)}
 .footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0 0;background:var(--vscode-editor-background)}
 .footer-actions{display:flex;gap:10px;align-items:center}
-.status{font-size:12px;color:var(--vscode-descriptionForeground)}
+.status{font-size:12px;color:var(--vscode-descriptionForeground);display:flex;align-items:center;gap:10px}
 .status.ok{color:var(--vscode-testing-iconPassed,#4CAF50)}
 .status.err{color:var(--vscode-errorForeground,#f14c4c)}
+.status .link{color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:underline;background:none;border:none;font:inherit;padding:0}
 code{background:rgba(127,127,127,.18);padding:1px 5px;border-radius:4px;font-family:var(--vscode-editor-font-family,monospace)}
 button.primary{padding:11px 22px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font:inherit;font-weight:600;cursor:pointer}
 button.primary:hover{background:var(--vscode-button-hoverBackground)}
@@ -471,6 +503,7 @@ const vscode=acquireVsCodeApi();
 const $=(id)=>document.getElementById(id);
 let cur=null,detected=[];
 function eq(a,b){return String(a).toLowerCase()===String(b).toLowerCase();}
+function luminance(hex){const n=hex.replace('#','');if(!/^[0-9a-f]{6}$/i.test(n))return 0;const c=[0,2,4].map(i=>parseInt(n.slice(i,i+2),16)/255);return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];}
 function selectProject(id){cur=STATE.projects.find(p=>p.id===id);detected=[];$('detecthint').hidden=true;renderAll();}
 function swatchRow(elId,list,key){
   const el=$(elId);el.innerHTML='';
@@ -479,14 +512,25 @@ function swatchRow(elId,list,key){
   combined.forEach(c=>{
     const s=document.createElement('button');s.type='button';
     s.className='swatch'+(detected.some(d=>eq(d,c))?' detected':'')+(eq(cur.selections[key],c)?' sel':'');
-    s.style.background=c;s.title=c;s.onclick=()=>{cur.selections[key]=c;swatchRow(elId,list,key);};el.appendChild(s);
+    s.style.background=c;s.title=c;s.onclick=()=>{cur.selections[key]=c;swatchRow(elId,list,key);renderPreview();};el.appendChild(s);
   });
   const pick=document.createElement('input');pick.type='color';pick.className='picker';
   pick.value=/^#[0-9a-f]{6}$/i.test(cur.selections[key])?cur.selections[key]:'#000000';pick.title='Custom color';
-  pick.oninput=()=>{cur.selections[key]=pick.value;swatchRow(elId,list,key);};el.appendChild(pick);
+  pick.oninput=()=>{cur.selections[key]=pick.value;swatchRow(elId,list,key);renderPreview();};el.appendChild(pick);
 }
 function renderPresets(elId,list,cb){const el=$(elId);el.innerHTML='';list.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='pill';b.textContent=v;b.onclick=()=>cb(v);el.appendChild(b);});}
-function renderFeatures(){const el=$('features');el.innerHTML='';STATE.features.forEach(f=>{const on=!!cur.selections.features[f.key];const d=document.createElement('div');d.className='toggle'+(on?' on':'');d.innerHTML='<span class="track"></span><span class="meta"><b>'+f.label+'</b><small>'+f.hint+'</small></span>';d.onclick=()=>{cur.selections.features[f.key]=!cur.selections.features[f.key];renderFeatures();};el.appendChild(d);});}
+function renderFeatureGroup(elId,group){const el=$(elId);el.innerHTML='';STATE.features.filter(f=>f.group===group).forEach(f=>{const on=!!cur.selections.features[f.key];const d=document.createElement('div');d.className='toggle'+(on?' on':'');d.innerHTML='<span class="track"></span><span class="meta"><b>'+f.label+'</b><small>'+f.hint+'</small></span>';d.onclick=()=>{cur.selections.features[f.key]=!cur.selections.features[f.key];renderFeatureGroup(elId,group);};el.appendChild(d);});}
+function renderPreview(){
+  const p=cur.selections;
+  $('preview').querySelector('.preview-hero').style.background=/^#[0-9a-f]{6}$/i.test(p.primary)?p.primary:'#03438E';
+  const dark=luminance(p.primary)>0.5;
+  $('preview').querySelector('.preview-hero').style.color=dark?'#111':'#fff';
+  $('previewBadge').textContent=p.brandName||'Brand';
+  $('previewBadge').style.background=dark?'rgba(0,0,0,.12)':'rgba(255,255,255,.22)';
+  $('previewTitle').textContent=p.title||'Component Catalog';
+  $('previewBtn').style.background=/^#[0-9a-f]{6}$/i.test(p.accent)?p.accent:'#4CADE9';
+  $('previewBtn').style.color=luminance(p.accent)>0.5?'#111':'#fff';
+}
 function renderAll(){
   $('brandInput').value=cur.selections.brandName;
   $('titleInput').value=cur.selections.title;
@@ -495,7 +539,9 @@ function renderAll(){
   swatchRow('primary',STATE.primarySwatches,'primary');
   swatchRow('accent',STATE.accentSwatches,'accent');
   swatchRow('background',STATE.backgroundSwatches,'background');
-  renderFeatures();
+  renderFeatureGroup('features','core');
+  renderFeatureGroup('governanceFeatures','governance');
+  renderPreview();
 }
 function init(){
   if(!STATE.projects.length){$('noproject').hidden=false;return;}
@@ -503,9 +549,9 @@ function init(){
   const sel=$('project');STATE.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.artifactId;sel.appendChild(o);});
   sel.onchange=()=>selectProject(sel.value);
   if(STATE.projects.length<2)$('projectcard').hidden=true;
-  renderPresets('titlePresets',STATE.titlePresets,v=>{cur.selections.title=v;$('titleInput').value=v;});
-  $('brandInput').oninput=()=>{cur.selections.brandName=$('brandInput').value;};
-  $('titleInput').oninput=()=>{cur.selections.title=$('titleInput').value;};
+  renderPresets('titlePresets',STATE.titlePresets,v=>{cur.selections.title=v;$('titleInput').value=v;renderPreview();});
+  $('brandInput').oninput=()=>{cur.selections.brandName=$('brandInput').value;renderPreview();};
+  $('titleInput').oninput=()=>{cur.selections.title=$('titleInput').value;renderPreview();};
   $('descInput').oninput=()=>{cur.selections.description=$('descInput').value;};
   $('subcatInput').oninput=()=>{cur.selections.subCategoryProperty=$('subcatInput').value;};
   $('detect').onclick=()=>{$('detect').disabled=true;$('detect').textContent='Scanning…';vscode.postMessage({type:'detectTheme',projectId:cur.id});};
@@ -519,9 +565,19 @@ function init(){
 window.addEventListener('message',e=>{const m=e.data;if(!m)return;
   if(m.type==='detected'){$('detect').disabled=false;$('detect').textContent='Detect from workspace';detected=Array.isArray(m.colors)?m.colors:[];
     const h=$('detecthint');h.hidden=false;h.textContent=detected.length?('Found '+detected.length+' brand color(s) in your clientlib CSS — shown with a dashed outline.'):'No brand colors detected in the workspace clientlib CSS.';
-    swatchRow('primary',STATE.primarySwatches,'primary');swatchRow('accent',STATE.accentSwatches,'accent');swatchRow('background',STATE.backgroundSwatches,'background');}
+    swatchRow('primary',STATE.primarySwatches,'primary');swatchRow('accent',STATE.accentSwatches,'accent');swatchRow('background',STATE.backgroundSwatches,'background');renderPreview();}
   if(m.type==='deployStarted'){const st=$('status');st.className='status';st.textContent=m.ok?'Deploy started — confirm the prompt; watch the terminal + toast.':'Could not start deploy.';}
-  if(m.type==='result'){$('generate').disabled=false;const st=$('status');if(m.ok){st.className='status ok';st.textContent='Done · '+m.created+' created · '+m.updated+' updated. Deploy, then open '+m.authorPath;}else{st.className='status err';st.textContent=m.error;}}
+  if(m.type==='result'){
+    $('generate').disabled=false;const st=$('status');st.innerHTML='';
+    if(m.ok){
+      st.className='status ok';
+      const summary=document.createElement('span');summary.textContent='✓ Generated · '+m.created+' created · '+m.updated+' updated. Next: deploy, then open ';
+      const path=document.createElement('code');path.textContent=m.authorPath;
+      st.appendChild(summary);st.appendChild(path);
+    }else{
+      st.className='status err';st.textContent=m.error;
+    }
+  }
 });
 init();
 `;
