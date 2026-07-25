@@ -1323,3 +1323,23 @@
     border-radius: 20px;
 }
 .pcl-fields__empty { color: var(--pcl-text-muted); font-size: 13px; margin: 0; }
+
+/* Preview carousel (detail view) — one image at a time, above the overview */
+.pcl-carousel { background: var(--pcl-surface); border: 1px solid var(--pcl-border-light); border-radius: var(--pcl-radius-lg); box-shadow: var(--pcl-shadow-sm); padding: 18px 20px 20px; margin: 0 0 28px; outline: none; }
+.pcl-carousel__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.pcl-carousel__title { font-size: 16px; font-weight: 700; color: var(--pcl-text); margin: 0; }
+.pcl-carousel__counter { font-size: 13px; color: var(--pcl-text-muted); }
+.pcl-carousel__counter b { color: var(--pcl-primary); }
+.pcl-carousel__viewport { position: relative; display: flex; align-items: center; justify-content: center; background: var(--pcl-surface-alt); border-radius: var(--pcl-radius); overflow: hidden; }
+.pcl-carousel__stage { width: 100%; max-height: 520px; min-height: 220px; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.pcl-carousel__img { display: none; max-width: 100%; max-height: 488px; object-fit: contain; border-radius: 6px; }
+.pcl-carousel__img.is-active { display: block; }
+.pcl-carousel__nav { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--pcl-border); background: var(--pcl-surface); color: var(--pcl-text); cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--pcl-shadow-sm); z-index: 2; }
+.pcl-carousel__nav svg { width: 20px; height: 20px; }
+.pcl-carousel__nav:hover { border-color: var(--pcl-primary); color: var(--pcl-primary); }
+.pcl-carousel__nav--prev { left: 12px; }
+.pcl-carousel__nav--next { right: 12px; }
+.pcl-carousel__caption { text-align: center; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--pcl-text-muted); margin-top: 10px; }
+.pcl-carousel__dots { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.pcl-carousel__dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--pcl-border); cursor: pointer; padding: 0; transition: var(--pcl-transition); }
+.pcl-carousel__dot.is-active { background: var(--pcl-primary); transform: scale(1.25); }

@@ -77,6 +77,8 @@ describe('transactional generation', () => {
     expect(script).toContain('renderFacets');
     expect(script).toContain('renderMetrics');
     expect(script).toContain('relationshipsSection');
+    expect(script).toContain('carouselSection');
+    expect(script).toContain('bindCarousel');
     const styles = plan.items.find((item) => item.relativePath.endsWith('styles.css'))!.content;
     expect(styles).toContain('.pcl-facet__select');
     expect(styles).toContain('.pcl-metric');

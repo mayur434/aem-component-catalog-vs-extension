@@ -354,6 +354,8 @@
         html += '<p class="pcl-detail__desc">' + esc(comp.description || "A shared component from the " + groupLabel(comp.group) + " group.") + "</p>";
         html += "</div>";
 
+        html += carouselSection(comp);
+
         html += '<div class="pcl-detail__grid">';
         html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Overview</h3>';
         html += infoRow("Category", esc(comp.category || "General"));
@@ -377,25 +379,6 @@
         html += "</div></div>";
 
         html += relationshipsSection(comp, pagePath);
-
-        {{#if features.lightbox}}
-        if (comp.layouts && comp.layouts.length > 0) {
-            html += '<div class="pcl-gallery"><div class="pcl-gallery__header">';
-            html += '<h3 class="pcl-gallery__title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Layout Screenshots</h3>';
-            html += '<span class="pcl-gallery__count">' + comp.layouts.length + (comp.layouts.length === 1 ? " image" : " images") + "</span>";
-            html += "</div>";
-            html += '<div class="pcl-gallery__grid">';
-            for (var li = 0; li < comp.layouts.length; li++) {
-                var layout = comp.layouts[li];
-                html += '<div class="pcl-gallery__item" data-lb-index="' + li + '">';
-                html += '<img src="' + esc(layout.path) + '" alt="' + esc(layout.name) + '" loading="lazy"/>';
-                html += '<div class="pcl-gallery__item-overlay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></div>';
-                html += '<div class="pcl-gallery__item-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' + esc(layout.name) + "</div>";
-                html += "</div>";
-            }
-            html += "</div></div>";
-        }
-        {{/if}}
 
         {{#if features.codeSnippets}}
         html += '<div class="pcl-code-section"><div class="pcl-code-section__header"><h3 class="pcl-code-section__title">HTL Usage</h3><button class="pcl-code-section__copy">Copy</button></div>';
@@ -429,12 +412,69 @@
         }
         {{/if}}
 
+        bindCarousel();
         {{#if features.codeSnippets}}
         bindCopyButtons();
         {{/if}}
         {{#if features.lightbox}}
         bindLightbox();
         {{/if}}
+    }
+
+    /* ------ preview carousel (one image at a time; desktop / mobile / …) ------ */
+    function carouselSection(comp) {
+        var imgs = comp.layouts || [];
+        if (imgs.length === 0) return "";
+        var many = imgs.length > 1;
+        var html = '<div class="pcl-carousel" tabindex="0">';
+        html += '<div class="pcl-carousel__head"><h3 class="pcl-carousel__title">Preview</h3>' +
+            '<span class="pcl-carousel__counter"><b class="pcl-carousel__index">1</b> / ' + imgs.length + "</span></div>";
+        html += '<div class="pcl-carousel__viewport">';
+        if (many) html += '<button type="button" class="pcl-carousel__nav pcl-carousel__nav--prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>';
+        html += '<div class="pcl-carousel__stage">';
+        for (var i = 0; i < imgs.length; i++) {
+            html += '<img class="pcl-carousel__img' + (i === 0 ? " is-active" : "") + '" src="' + esc(imgs[i].path) + '" alt="' + esc(imgs[i].name) + '" data-name="' + esc(imgs[i].name) + '" loading="lazy"/>';
+        }
+        html += "</div>";
+        if (many) html += '<button type="button" class="pcl-carousel__nav pcl-carousel__nav--next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></button>';
+        html += "</div>";
+        html += '<div class="pcl-carousel__caption">' + esc(imgs[0].name) + "</div>";
+        if (many) {
+            html += '<div class="pcl-carousel__dots">';
+            for (var d = 0; d < imgs.length; d++) {
+                html += '<button type="button" class="pcl-carousel__dot' + (d === 0 ? " is-active" : "") + '" data-i="' + d + '" aria-label="Image ' + (d + 1) + '"></button>';
+            }
+            html += "</div>";
+        }
+        return html + "</div>";
+    }
+
+    function bindCarousel() {
+        var car = document.querySelector(".pcl-carousel");
+        if (!car) return;
+        var imgs = car.querySelectorAll(".pcl-carousel__img");
+        var dots = car.querySelectorAll(".pcl-carousel__dot");
+        var idxEl = car.querySelector(".pcl-carousel__index");
+        var cap = car.querySelector(".pcl-carousel__caption");
+        var cur = 0;
+        function show(i) {
+            if (i < 0) i = imgs.length - 1;
+            if (i >= imgs.length) i = 0;
+            cur = i;
+            imgs.forEach(function (im, k) { im.classList.toggle("is-active", k === i); });
+            dots.forEach(function (dt, k) { dt.classList.toggle("is-active", k === i); });
+            if (idxEl) idxEl.textContent = i + 1;
+            if (cap) cap.textContent = imgs[i].getAttribute("data-name");
+        }
+        var prev = car.querySelector(".pcl-carousel__nav--prev");
+        var next = car.querySelector(".pcl-carousel__nav--next");
+        if (prev) prev.addEventListener("click", function () { show(cur - 1); });
+        if (next) next.addEventListener("click", function () { show(cur + 1); });
+        dots.forEach(function (dt) { dt.addEventListener("click", function () { show(parseInt(dt.getAttribute("data-i"), 10)); }); });
+        car.addEventListener("keydown", function (e) {
+            if (e.key === "ArrowLeft") show(cur - 1);
+            if (e.key === "ArrowRight") show(cur + 1);
+        });
     }
 
     function infoRow(label, value) {
