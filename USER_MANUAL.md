@@ -55,6 +55,7 @@ Main sections:
 - `hero`: escaped catalog copy and statistics
 - `catalog`: author deployment, cache duration, and API page size
 - `governance`: policy location and metadata property names
+- `taxonomy`: two-level catalog grouping — **Category** = the website (first path segment under the components root, displayed via `categoryLabels`); **Sub Category** = the `subCategoryProperty` value on the component when present, otherwise its AEM `componentGroup`
 
 Unsafe path traversal, invalid Java/resource names, dangerous CSS characters, publish deployment, and unsupported cache/page sizes are rejected before planning.
 

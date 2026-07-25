@@ -82,6 +82,18 @@ export interface GovernanceConfig {
   tagsProperty: string;
 }
 
+/**
+ * Two-level catalog taxonomy.
+ * - Category  = the website (first path segment under the components root, e.g. `corporate`),
+ *   shown using the friendly label from `categoryLabels` (falls back to a prettified key).
+ * - Sub Category = the value of `subCategoryProperty` on the component when present,
+ *   otherwise the component's AEM `componentGroup`.
+ */
+export interface TaxonomyConfig {
+  categoryLabels: Record<string, string>;
+  subCategoryProperty: string;
+}
+
 export interface ComponentLibraryConfig {
   schemaVersion: 2;
   appId: string;
@@ -93,4 +105,5 @@ export interface ComponentLibraryConfig {
   hero: HeroConfig;
   catalog: CatalogRuntimeConfig;
   governance: GovernanceConfig;
+  taxonomy: TaxonomyConfig;
 }

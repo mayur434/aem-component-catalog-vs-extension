@@ -166,6 +166,19 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   ) {
     errors.push('governance.policyFile must be a project-relative path without parent traversal');
   }
+  if (config.taxonomy) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9:_-]*$/.test(config.taxonomy.subCategoryProperty)) {
+      errors.push('taxonomy.subCategoryProperty must be a valid JCR property name');
+    }
+    for (const [key, label] of Object.entries(config.taxonomy.categoryLabels ?? {})) {
+      if (!/^[a-zA-Z0-9._-]+$/.test(key)) {
+        errors.push(`taxonomy.categoryLabels key "${key}" must be a safe folder segment`);
+      }
+      if (typeof label !== 'string' || /[<>\u0000-\u001f]/.test(label)) {
+        errors.push(`taxonomy.categoryLabels["${key}"] must be a safe label`);
+      }
+    }
+  }
   if (
     !Number.isInteger(config.catalog.cacheSeconds) ||
     config.catalog.cacheSeconds < 0 ||

@@ -75,75 +75,99 @@
     /* ====================================================
        LISTING VIEW
        ==================================================== */
+    function subLabel(sub) {
+        // Curated sub-categories are already friendly; group values get the appId prefix stripped.
+        return groupLabel(String(sub == null ? "" : sub));
+    }
+
+    function renderCard(comp, pagePath, category, sub) {
+        var href = pagePath + ".html/" + encodeURIComponent(comp.name);
+        var hasThumbnail = !!comp.thumbnailPath;
+        var html = '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-category="' + esc(category) + '" data-subcategory="' + esc(sub) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '">';
+        html += '<div class="pcl-card__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>';
+        if (hasThumbnail) {
+            html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" loading="lazy"/></div>';
+        } else {
+            html += '<div class="pcl-card__preview"><div class="pcl-card__preview-pattern"></div><div class="pcl-card__preview-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div></div>';
+        }
+        html += '<div class="pcl-card__body">';
+        html += '<div class="pcl-card__header"><h3 class="pcl-card__title">' + esc(comp.title) + '</h3><span class="pcl-card__badge ' + badgeClass(comp.group) + '">' + esc(subLabel(sub)) + "</span></div>";
+        html += '<p class="pcl-card__desc">' + (comp.description ? esc(comp.description) : "Component \u2014 click for details and documentation.") + "</p>";
+        html += '<div class="pcl-card__meta">';
+        html += '<span class="pcl-card__meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>' + esc(category) + " \u203a " + esc(subLabel(sub)) + "</span>";
+        if (comp.hasDialog) {
+            html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>Dialog</span></span>';
+        }
+        if (comp.readmePath) {
+            html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>README</span></span>';
+        }
+        if (comp.layouts && comp.layouts.length > 0) {
+            html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>' + comp.layouts.length + ' Layout' + (comp.layouts.length > 1 ? 's' : '') + '</span></span>';
+        }
+        {{#if features.qualityScore}}
+        html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--' + (comp.qualityScore >= 70 ? "yes" : "no") + '"></span>' + esc(comp.qualityScore) + '/100</span></span>';
+        {{/if}}
+        html += "</div></div></a>";
+        return html;
+    }
+
     function renderListing(data) {
         var pagePath = getPagePath();
         var main = document.getElementById("pcl-main");
         var toolbar = document.getElementById("pcl-toolbar");
         var pillsContainer = document.getElementById("pcl-filter-pills");
+        var categories = data.categories || {};
 
         var totalEl = document.getElementById("pcl-total-count");
         var catEl = document.getElementById("pcl-category-count");
         if (totalEl) totalEl.textContent = data.total;
-        if (catEl) catEl.textContent = Object.keys(data.groups).length;
+        if (catEl) catEl.textContent = Object.keys(categories).length;
 
         toolbar.style.display = "";
+        // Top-level filter pills = Category (website).
         var pillsHtml = '<button class="pcl-filter-pill active" data-filter="">All <span class="pcl-filter-pill__count">' + data.total + "</span></button>";
-        var groups = data.groups;
-        for (var g in groups) {
-            if (groups.hasOwnProperty(g)) {
-                pillsHtml += '<button class="pcl-filter-pill" data-filter="' + esc(g) + '">' +
-                    esc(groupLabel(g)) +
-                    ' <span class="pcl-filter-pill__count">' + groups[g] + "</span></button>";
-            }
+        var catNames = Object.keys(categories).sort();
+        for (var ci = 0; ci < catNames.length; ci++) {
+            var cn = catNames[ci];
+            pillsHtml += '<button class="pcl-filter-pill" data-filter="' + esc(cn) + '">' +
+                esc(cn) + ' <span class="pcl-filter-pill__count">' + categories[cn] + "</span></button>";
         }
         pillsContainer.innerHTML = pillsHtml;
 
-        var byGroup = {};
+        // Group components: Category (website) -> Sub Category -> [components].
+        var byCategory = {};
         var components = data.components;
         for (var i = 0; i < components.length; i++) {
             var c = components[i];
-            if (!byGroup[c.group]) byGroup[c.group] = [];
-            byGroup[c.group].push(c);
+            var cat = c.category || "General";
+            var sub = c.subCategory || c.group || "Other";
+            if (!byCategory[cat]) byCategory[cat] = {};
+            if (!byCategory[cat][sub]) byCategory[cat][sub] = [];
+            byCategory[cat][sub].push(c);
         }
 
         var html = "";
-        for (var grp in byGroup) {
-            if (!byGroup.hasOwnProperty(grp)) continue;
-            var list = byGroup[grp];
-            html += '<div class="pcl-category-section" data-category="' + esc(grp) + '">';
-            html += '<h2 class="pcl-section-title">' + esc(groupLabel(grp)) + " (" + list.length + ")</h2>";
-            html += '<div class="pcl-grid">';
-            for (var j = 0; j < list.length; j++) {
-                var comp = list[j];
-                var href = pagePath + ".html/" + encodeURIComponent(comp.name);
-                var hasThumbnail = !!comp.thumbnailPath;
-                html += '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '">';
-                html += '<div class="pcl-card__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>';
-                if (hasThumbnail) {
-                    html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" loading="lazy"/></div>';
-                } else {
-                    html += '<div class="pcl-card__preview"><div class="pcl-card__preview-pattern"></div><div class="pcl-card__preview-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div></div>';
+        var sortedCats = Object.keys(byCategory).sort();
+        for (var ck = 0; ck < sortedCats.length; ck++) {
+            var category = sortedCats[ck];
+            var subs = byCategory[category];
+            var catTotal = 0;
+            var sortedSubs = Object.keys(subs).sort();
+            for (var s0 = 0; s0 < sortedSubs.length; s0++) catTotal += subs[sortedSubs[s0]].length;
+            html += '<section class="pcl-category-section" data-category="' + esc(category) + '">';
+            html += '<h2 class="pcl-section-title">' + esc(category) + ' <span class="pcl-section-title__count">' + catTotal + '</span></h2>';
+            for (var sk = 0; sk < sortedSubs.length; sk++) {
+                var sub = sortedSubs[sk];
+                var list = subs[sub];
+                html += '<div class="pcl-subcategory-section" data-subcategory="' + esc(sub) + '">';
+                html += '<h3 class="pcl-subcategory-title">' + esc(subLabel(sub)) + ' <span class="pcl-subcategory-title__count">' + list.length + '</span></h3>';
+                html += '<div class="pcl-grid">';
+                for (var j = 0; j < list.length; j++) {
+                    html += renderCard(list[j], pagePath, category, sub);
                 }
-                html += '<div class="pcl-card__body">';
-                html += '<div class="pcl-card__header"><h3 class="pcl-card__title">' + esc(comp.title) + '</h3><span class="pcl-card__badge ' + badgeClass(comp.group) + '">' + esc(groupSlug(comp.group)) + "</span></div>";
-                html += '<p class="pcl-card__desc">' + (comp.description ? esc(comp.description) : "Component \u2014 click for details and documentation.") + "</p>";
-                html += '<div class="pcl-card__meta">';
-                html += '<span class="pcl-card__meta-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>' + esc(groupLabel(comp.group)) + "</span>";
-                if (comp.hasDialog) {
-                    html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>Dialog</span></span>';
-                }
-                if (comp.readmePath) {
-                    html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>README</span></span>';
-                }
-                if (comp.layouts && comp.layouts.length > 0) {
-                    html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--yes"></span>' + comp.layouts.length + ' Layout' + (comp.layouts.length > 1 ? 's' : '') + '</span></span>';
-                }
-                {{#if features.qualityScore}}
-                html += '<span class="pcl-card__meta-item"><span class="pcl-status"><span class="pcl-status__dot pcl-status__dot--' + (comp.qualityScore >= 70 ? "yes" : "no") + '"></span>' + esc(comp.qualityScore) + '/100</span></span>';
-                {{/if}}
-                html += "</div></div></a>";
+                html += "</div></div>";
             }
-            html += "</div></div>";
+            html += "</section>";
         }
 
         html += '<div class="pcl-empty" style="display:none;"><svg class="pcl-empty__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg><h3 class="pcl-empty__title">No components found</h3><p class="pcl-empty__desc">Try adjusting your search or filter criteria.</p></div>';
@@ -175,22 +199,31 @@
         });
     }
 
-    function applyFilters(query, group) {
+    function applyFilters(query, category) {
         query = (query || "").toLowerCase().trim();
         var cards = document.querySelectorAll(".pcl-card");
+        var subSections = document.querySelectorAll(".pcl-subcategory-section");
         var sections = document.querySelectorAll(".pcl-category-section");
         var visibleCount = 0;
         cards.forEach(function (card) {
             var title = (card.getAttribute("data-title") || "").toLowerCase();
             var desc = (card.getAttribute("data-desc") || "").toLowerCase();
-            var grp = card.getAttribute("data-group") || "";
+            var grp = (card.getAttribute("data-group") || "").toLowerCase();
+            var cat = card.getAttribute("data-category") || "";
+            var sub = (card.getAttribute("data-subcategory") || "").toLowerCase();
             var owner = (card.getAttribute("data-owner") || "").toLowerCase();
             var status = (card.getAttribute("data-status") || "").toLowerCase();
-            var matchSearch = !query || title.indexOf(query) !== -1 || desc.indexOf(query) !== -1 || grp.toLowerCase().indexOf(query) !== -1 || owner.indexOf(query) !== -1 || status.indexOf(query) !== -1;
-            var matchGroup = !group || grp === group;
-            var show = matchSearch && matchGroup;
+            var matchSearch = !query || title.indexOf(query) !== -1 || desc.indexOf(query) !== -1 ||
+                grp.indexOf(query) !== -1 || cat.toLowerCase().indexOf(query) !== -1 || sub.indexOf(query) !== -1 ||
+                owner.indexOf(query) !== -1 || status.indexOf(query) !== -1;
+            var matchCategory = !category || cat === category;
+            var show = matchSearch && matchCategory;
             card.style.display = show ? "" : "none";
             if (show) visibleCount++;
+        });
+        subSections.forEach(function (sub) {
+            var vis = sub.querySelectorAll('.pcl-card:not([style*="display: none"])');
+            sub.style.display = vis.length > 0 ? "" : "none";
         });
         sections.forEach(function (section) {
             var vis = section.querySelectorAll('.pcl-card:not([style*="display: none"])');
@@ -221,7 +254,7 @@
         html += "</nav>";
 
         html += '<div class="pcl-detail__header">';
-        html += '<span class="pcl-detail__header-badge">' + esc(groupLabel(comp.group)) + "</span>";
+        html += '<span class="pcl-detail__header-badge">' + esc(comp.category || "General") + " › " + esc(subLabel(comp.subCategory || comp.group)) + "</span>";
         html += '<h1 class="pcl-detail__title">' + esc(comp.title) + "</h1>";
         html += '<p class="pcl-detail__desc">' + esc(comp.description || "A shared component from the " + groupLabel(comp.group) + " group.") + "</p>";
         html += "</div>";
@@ -231,6 +264,8 @@
         html += infoRow("Name", "<code>" + esc(comp.name) + "</code>");
         html += infoRow("Resource Type", "<code>" + esc(comp.resourceType) + "</code>");
         html += infoRow("Super Type", comp.superType ? "<code>" + esc(comp.superType) + "</code>" : "\u2014");
+        html += infoRow("Category", esc(comp.category || "General"));
+        html += infoRow("Sub Category", esc(subLabel(comp.subCategory || comp.group)));
         html += infoRow("Group", esc(comp.group));
         html += infoRow("Owner", esc(comp.owner || "Unowned"));
         html += infoRow("Status", esc(comp.status || "Unset"));

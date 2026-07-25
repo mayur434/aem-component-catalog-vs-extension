@@ -10,6 +10,9 @@ export interface ScannedComponent {
   title: string;
   description: string;
   group: string;
+  category: string;
+  categoryKey: string;
+  subCategory: string;
   resourceType: string;
   superType: string;
   dependencies: string[];
@@ -100,11 +103,19 @@ export function scanComponents(projectRoot: string, config: ComponentLibraryConf
       const dialogFields = readDialogFields(directory, parser);
       const model = modelIndex.get(resourceType);
 
+      const categoryKey = name.includes('/') ? name.split('/')[0] : '';
+      const category = config.taxonomy?.categoryLabels?.[categoryKey] ?? prettifyCategory(categoryKey);
+      const curatedSubCategory = property(root, config.taxonomy?.subCategoryProperty ?? 'catalogSubCategory');
+      const subCategory = curatedSubCategory || group;
+
       const component: ScannedComponent = {
         name,
         title: property(root, 'jcr:title') || path.basename(directory),
         description: property(root, 'jcr:description'),
         group,
+        category,
+        categoryKey,
+        subCategory,
         resourceType,
         superType,
         dependencies: superType ? [superType] : [],
@@ -309,4 +320,9 @@ function isImage(file: string): boolean {
 function globToRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
   return new RegExp(`^${escaped}$`, 'i');
+}
+
+function prettifyCategory(key: string): string {
+  if (!key) return 'General';
+  return key.charAt(0).toUpperCase() + key.slice(1);
 }

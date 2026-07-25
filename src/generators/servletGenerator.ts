@@ -22,6 +22,11 @@ export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): Ge
         statusProperty: config.governance.statusProperty,
         versionProperty: config.governance.versionProperty,
         tagsProperty: config.governance.tagsProperty,
+        subCategoryProperty: config.taxonomy.subCategoryProperty,
+        categoryLabels: Object.entries(config.taxonomy.categoryLabels).map(([key, label]) => ({
+          key,
+          label,
+        })),
         cacheSeconds: config.catalog.cacheSeconds,
         pageSize: config.catalog.pageSize,
       }),

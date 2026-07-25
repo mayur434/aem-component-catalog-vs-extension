@@ -3,6 +3,7 @@ package {{package}};
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -58,6 +59,8 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     private static final String STATUS_PROPERTY = {{javaString statusProperty}};
     private static final String VERSION_PROPERTY = {{javaString versionProperty}};
     private static final String TAGS_PROPERTY = {{javaString tagsProperty}};
+    private static final String SUB_CATEGORY_PROPERTY = {{javaString subCategoryProperty}};
+    private static final Map<String, String> CATEGORY_LABELS = new HashMap<>();
     private static final int DEFAULT_PAGE_SIZE = {{pageSize}};
     private static final int MAX_PAGE_SIZE = 1000;
     private static final long CACHE_MILLIS = {{cacheSeconds}}L * 1000L;
@@ -74,6 +77,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         {{/each}}
         {{#each layoutExclude}}
         LAYOUT_EXCLUDES.add({{javaString this}});
+        {{/each}}
+        {{#each categoryLabels}}
+        CATEGORY_LABELS.put({{javaString key}}, {{javaString label}});
         {{/each}}
     }
 
@@ -102,6 +108,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("total", catalog.components.size());
             result.put("groups", catalog.groups);
+            result.put("categories", catalog.categories);
             result.put("components", catalog.components.subList(from, to));
             result.put("offset", from);
             result.put("limit", limit);
@@ -154,12 +161,14 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             collectComponents(root, components, groups);
             components.sort((left, right) -> String.valueOf(left.get("title"))
                     .compareToIgnoreCase(String.valueOf(right.get("title"))));
+            Map<String, Integer> categories = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             int totalScore = 0;
             for (Map<String, Object> component : components) {
                 totalScore += (Integer) component.get("qualityScore");
+                categories.merge(String.valueOf(component.get("category")), 1, Integer::sum);
             }
             int average = components.isEmpty() ? 0 : Math.round((float) totalScore / components.size());
-            return new CatalogData(components, groups, average);
+            return new CatalogData(components, groups, categories, average);
         }
     }
 
@@ -202,11 +211,21 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         List<String> missing = new ArrayList<>();
         int score = qualityScore(hasDialog, hasReadme, thumbnail != null, owner, status, version, missing);
 
+        String relativeName = resource.getPath().substring(COMPONENTS_ROOT.length() + 1);
+        int firstSlash = relativeName.indexOf('/');
+        String categoryKey = firstSlash > 0 ? relativeName.substring(0, firstSlash) : "";
+        String category = CATEGORY_LABELS.getOrDefault(categoryKey, prettifyCategory(categoryKey));
+        String curatedSubCategory = properties.get(SUB_CATEGORY_PROPERTY, "");
+        String subCategory = !curatedSubCategory.isEmpty() ? curatedSubCategory : group;
+
         Map<String, Object> component = new LinkedHashMap<>();
-        component.put("name", resource.getPath().substring(COMPONENTS_ROOT.length() + 1));
+        component.put("name", relativeName);
         component.put("title", properties.get("jcr:title", resource.getName()));
         component.put("description", properties.get("jcr:description", ""));
         component.put("group", group);
+        component.put("category", category);
+        component.put("categoryKey", categoryKey);
+        component.put("subCategory", subCategory);
         component.put("resourceType", resourceType);
         component.put("superType", properties.get("sling:resourceSuperType", ""));
         component.put("isContainer", properties.get("cq:isContainer", false));
@@ -335,6 +354,13 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         return "F";
     }
 
+    private String prettifyCategory(String key) {
+        if (key == null || key.isEmpty()) {
+            return "General";
+        }
+        return Character.toUpperCase(key.charAt(0)) + key.substring(1);
+    }
+
     private int boundedInteger(String raw, int fallback, int minimum, int maximum) {
         if (raw == null) return fallback;
         try {
@@ -370,15 +396,18 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     private static final class CatalogData {
         private final List<Map<String, Object>> components;
         private final Map<String, Integer> groups;
+        private final Map<String, Integer> categories;
         private final int averageQualityScore;
 
         private CatalogData(
                 List<Map<String, Object>> components,
                 Map<String, Integer> groups,
+                Map<String, Integer> categories,
                 int averageQualityScore
         ) {
             this.components = components;
             this.groups = groups;
+            this.categories = categories;
             this.averageQualityScore = averageQualityScore;
         }
     }

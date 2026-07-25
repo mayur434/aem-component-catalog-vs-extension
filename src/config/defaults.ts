@@ -79,5 +79,17 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       versionProperty: 'catalogVersion',
       tagsProperty: 'catalogTags',
     },
+    // Category = website folder (first segment under components root); Sub Category =
+    // catalogSubCategory property when present, else the AEM componentGroup.
+    taxonomy: {
+      categoryLabels: {
+        campaign: 'Haisha Paints Campaigns',
+        corporate: 'Corporate',
+        haishapaints: 'Haisha Paints',
+        industrialproducts: 'Industrial Products',
+        pigments: 'Pigments',
+      },
+      subCategoryProperty: 'catalogSubCategory',
+    },
   };
 }
