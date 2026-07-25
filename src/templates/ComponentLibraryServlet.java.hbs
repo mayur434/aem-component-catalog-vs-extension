@@ -39,7 +39,10 @@ import com.google.gson.Gson;
  */
 @Component(
         service = { Servlet.class, ResourceChangeListener.class },
-        property = ResourceChangeListener.PATHS + "={{componentRoot}}"
+        property = {
+                ResourceChangeListener.PATHS + "={{componentRoot}}",
+                ResourceChangeListener.PATHS + "={{assetRoot}}"
+        }
 )
 @SlingServletResourceTypes(
         resourceTypes = "{{resourceType}}",
@@ -53,6 +56,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     private static final Logger LOG = LoggerFactory.getLogger(ComponentLibraryServlet.class);
     private static final Gson GSON = new Gson();
     private static final String COMPONENTS_ROOT = {{javaString componentRoot}};
+    private static final String ASSET_ROOT = {{javaString assetRoot}};
     private static final String SUBSERVICE_NAME = {{javaString subServiceName}};
     private static final String LAYOUT_FOLDER = {{javaString layoutFolderName}};
     private static final String OWNER_PROPERTY = {{javaString ownerProperty}};
@@ -206,12 +210,24 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         boolean hasEditConfig = resource.getChild("_cq_editConfig") != null || resource.getChild("cq:editConfig") != null;
         boolean hasDesignDialog = resource.getChild("_cq_design_dialog") != null || resource.getChild("cq:design_dialog") != null;
         boolean hasReadme = resource.getChild("README.md") != null;
-        Resource thumbnail = findThumbnail(resource);
-        List<Map<String, String>> layouts = findLayouts(resource);
-        List<String> missing = new ArrayList<>();
-        int score = qualityScore(hasDialog, hasReadme, thumbnail != null, owner, status, version, missing);
-
         String relativeName = resource.getPath().substring(COMPONENTS_ROOT.length() + 1);
+
+        // Images are author-managed in the DAM (no deploy): /content/dam/<app>/catalog/<component>.
+        // Fall back to any thumbnail/layouts shipped under /apps only when the DAM has none.
+        Resource damFolder = resource.getResourceResolver().getResource(ASSET_ROOT + "/" + relativeName);
+        String thumbnailPath = damThumbnail(damFolder);
+        List<Map<String, String>> layouts = damImages(damFolder);
+        if (thumbnailPath == null) {
+            Resource appsThumbnail = findThumbnail(resource);
+            if (appsThumbnail != null) thumbnailPath = appsThumbnail.getPath();
+        }
+        if (layouts.isEmpty()) {
+            layouts = findLayouts(resource);
+        }
+
+        List<String> missing = new ArrayList<>();
+        int score = qualityScore(hasDialog, hasReadme, thumbnailPath != null, owner, status, version, missing);
+
         int firstSlash = relativeName.indexOf('/');
         String categoryKey = firstSlash > 0 ? relativeName.substring(0, firstSlash) : "";
         String category = CATEGORY_LABELS.getOrDefault(categoryKey, prettifyCategory(categoryKey));
@@ -242,7 +258,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         component.put("qualityGrade", qualityGrade(score));
         component.put("qualityMissing", missing);
         if (hasReadme) component.put("readmePath", resource.getChild("README.md").getPath());
-        if (thumbnail != null) component.put("thumbnailPath", thumbnail.getPath());
+        if (thumbnailPath != null) component.put("thumbnailPath", thumbnailPath);
         if (!layouts.isEmpty()) component.put("layouts", layouts);
         components.add(component);
         groups.merge(group, 1, Integer::sum);
@@ -260,6 +276,41 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             }
         }
         return null;
+    }
+
+    /** Card thumbnail from the component's DAM folder: a thumbnail.* asset, else the first image. */
+    private String damThumbnail(Resource folder) {
+        if (folder == null) return null;
+        String firstImage = null;
+        for (Resource child : folder.getChildren()) {
+            String name = child.getName();
+            if (!isImage(name)) continue;
+            if (isThumbnailName(name)) return child.getPath();
+            if (firstImage == null) firstImage = child.getPath();
+        }
+        return firstImage;
+    }
+
+    /** Detail-gallery images from the component's DAM folder (every image except thumbnail.*). */
+    private List<Map<String, String>> damImages(Resource folder) {
+        List<Map<String, String>> images = new ArrayList<>();
+        if (folder == null) return images;
+        for (Resource child : folder.getChildren()) {
+            String name = child.getName();
+            if (!isImage(name) || isThumbnailName(name)) continue;
+            Map<String, String> image = new LinkedHashMap<>();
+            image.put("name", name);
+            image.put("path", child.getPath());
+            images.add(image);
+        }
+        return images;
+    }
+
+    private boolean isThumbnailName(String fileName) {
+        for (String name : THUMBNAIL_NAMES) {
+            if (name.equalsIgnoreCase(fileName)) return true;
+        }
+        return false;
     }
 
     private List<Map<String, Object>> readDialogFields(Resource component) {

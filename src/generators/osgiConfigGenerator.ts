@@ -16,6 +16,7 @@ export function planOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths)
     contentPath: config.output.contentPath,
     componentRoot: config.components.root,
     appId: config.appId,
+    assetRoot: config.output.assetRoot,
     pageResourceType: config.output.pageResourceType,
     pageTitle: config.output.pageTitle,
     pagePaths: contentPagePaths(config.output.contentPath),

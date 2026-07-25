@@ -52,6 +52,8 @@ export interface OutputConfig {
   pageResourceType: string;
   /** The page component the catalog page extends; defaults to the WCM core page. */
   pageSuperType: string;
+  /** DAM folder authors manage component images in (thumbnail + gallery), no deploy. */
+  assetRoot: string;
 }
 
 export interface ServiceUserConfig {

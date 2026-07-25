@@ -58,9 +58,18 @@ describe('transactional generation', () => {
       ),
     ).toBe(true);
     expect(repoinit.relativePath).toContain('config.author');
+    // DAM-managed images: servlet reads /content/dam/<app>/catalog, RepoInit provisions it.
+    expect(
+      parsed.scripts.some((script) => script.includes('create path (sling:OrderedFolder) /content/dam/sample-site/catalog')),
+    ).toBe(true);
+    expect(
+      parsed.scripts.some((script) => script.includes('allow jcr:read on /content/dam/sample-site/catalog')),
+    ).toBe(true);
     const servlet = plan.items.find((item) => item.kind === 'java')!.content;
     expect(servlet).toContain('getRunModes().contains("author")');
     expect(servlet).toContain('ResourceChangeListener');
+    expect(servlet).toContain('ASSET_ROOT = "/content/dam/sample-site/catalog"');
+    expect(servlet).toContain('damThumbnail');
     const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
     expect(script).toContain('var h = esc(md)');
     expect(script).toContain('fetchAll(endpoint)');

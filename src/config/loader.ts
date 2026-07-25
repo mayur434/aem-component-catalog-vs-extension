@@ -100,6 +100,12 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
     errors.push('output.pageSuperType must be a safe relative resource type');
   }
 
+  if (!config.output.assetRoot || !config.output.assetRoot.startsWith('/content/dam/')) {
+    errors.push('output.assetRoot must start with /content/dam/');
+  } else if (!isSafeJcrPath(config.output.assetRoot)) {
+    errors.push('output.assetRoot contains unsafe path segments');
+  }
+
   if (!config.output.clientlibCategory || !config.output.clientlibCategory.trim()) {
     errors.push('output.clientlibCategory is required');
   } else if (!/^[a-zA-Z0-9._-]+$/.test(config.output.clientlibCategory)) {

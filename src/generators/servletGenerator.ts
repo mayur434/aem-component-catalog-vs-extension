@@ -12,6 +12,7 @@ export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): Ge
         package: config.output.servletPackage,
         appId: config.appId,
         componentRoot: config.components.root,
+        assetRoot: config.output.assetRoot,
         resourceType: config.output.pageResourceType,
         subServiceName: config.serviceUser.subServiceName,
         excludedGroups: config.components.groups.exclude,

@@ -59,6 +59,9 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       // Extend the WCM core page (always present on AEMaaCS) so the catalog renders
       // even in a component library that has no base page component of its own.
       pageSuperType: 'core/wcm/components/page/v3/page',
+      // Component images live in the DAM (author-managed, no deploy). Per component:
+      // <assetRoot>/<component-relative-path>/thumbnail.<ext> and other images.
+      assetRoot: `/content/dam/${appId}/catalog`,
     },
     serviceUser: {
       name: `${appId}-service`,
