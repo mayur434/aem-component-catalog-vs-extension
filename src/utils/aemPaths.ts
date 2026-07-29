@@ -16,6 +16,7 @@ export interface AemPaths {
   pageComponentDir(config: ComponentLibraryConfig): string;
   clientlibDir(config: ComponentLibraryConfig): string;
   osgiConfigDir(config: ComponentLibraryConfig): string;
+  oakIndexFile(config: ComponentLibraryConfig): string;
 }
 
 export function resolveAemPaths(projectRoot: string): AemPaths {
@@ -92,6 +93,24 @@ export function resolveAemPaths(projectRoot: string): AemPaths {
           config.appId,
           'osgiconfig',
           'config',
+        ),
+      );
+    },
+    oakIndexFile(config) {
+      // ui.apps (the CODE package), NOT ui.content: AEMaaCS requires /oak:index definitions
+      // to ship as code so Cloud Manager installs and reindexes them before the blue-green
+      // switchover, ahead of any mutable content package. FileVault platform-name mangling
+      // maps the namespaced JCR name oak:index to the folder _oak_index.
+      return within(
+        path.join(
+          uiApps,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          '_oak_index',
+          config.catalog.usageIndexName,
+          '.content.xml',
         ),
       );
     },

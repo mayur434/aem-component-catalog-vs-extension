@@ -208,8 +208,18 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   if (!config.catalog.usageCron || !/^[-0-9*?/,\s]+$/.test(config.catalog.usageCron)) {
     errors.push('catalog.usageCron must be a valid quartz cron expression');
   }
-  if (!config.catalog.usageIndexName || !/^[a-zA-Z0-9][a-zA-Z0-9-]*$/.test(config.catalog.usageIndexName)) {
-    errors.push('catalog.usageIndexName must be a valid Oak index node name (alphanumeric and dashes)');
+  // AEMaaCS rejects/ignores custom indexes that do not follow its naming convention:
+  // a 2-5 char vendor prefix, a dot, the index name, then a "-custom-<N>" revision suffix.
+  // Enforced here so a non-compliant name can never reach a Cloud Manager deployment.
+  if (
+    !config.catalog.usageIndexName ||
+    !/^[a-z0-9]{2,5}\.[A-Za-z0-9-]+-custom-\d+$/.test(config.catalog.usageIndexName)
+  ) {
+    errors.push(
+      'catalog.usageIndexName must follow the AEMaaCS custom-index convention ' +
+        '<prefix>.<indexName>-custom-<version>, e.g. "acme.componentUsage-custom-1" ' +
+        '(2-5 char lowercase prefix, and the -custom-<number> suffix is mandatory)',
+    );
   }
 
   return errors;

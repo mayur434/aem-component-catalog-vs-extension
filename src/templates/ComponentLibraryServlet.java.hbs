@@ -69,6 +69,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     private static final int MAX_PAGE_SIZE = 1000;
     private static final long CACHE_MILLIS = {{cacheSeconds}}L * 1000L;
     private static final boolean REQUIRE_PUBLISHED_USAGE = {{requirePublishedUsage}};
+    private static final boolean SERVE_ON_PUBLISH = {{serveOnPublish}};
     private static final Set<String> EXCLUDED_GROUPS = new HashSet<>();
     private static final Set<String> EXCLUDED_LEAF_NAMES = new HashSet<>();
     private static final List<String> EXCLUDED_SUPER_TOKENS = new ArrayList<>();
@@ -110,7 +111,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws IOException {
         secureHeaders(response);
-        if (!slingSettings.getRunModes().contains("author")) {
+        if (!isEnabledRunMode()) {
             response.sendError(SlingHttpServletResponse.SC_NOT_FOUND);
             return;
         }
@@ -144,6 +145,20 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     @Override
     public void onChange(List<ResourceChange> changes) {
         cache = null;
+    }
+
+    /**
+     * The catalog always serves on author. Whether it also serves on publish is a build-time
+     * choice ({@code catalog.serveOnPublish}). Serving on publish makes the endpoint reachable
+     * by anything that can reach the publish tier, so the dispatcher filter is the real access
+     * gate there - this flag only decides whether the servlet responds at all.
+     */
+    private boolean isEnabledRunMode() {
+        Set<String> runModes = slingSettings.getRunModes();
+        if (runModes.contains("author")) {
+            return true;
+        }
+        return SERVE_ON_PUBLISH && runModes.contains("publish");
     }
 
     private CatalogData getCatalog() throws LoginException {
@@ -298,7 +313,11 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         component.put("status", status);
         component.put("version", version);
         List<Map<String, String>> usages = usageService.pagesFor(relativeName);
-        if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty()) {
+        // Fail OPEN, never closed. The usage filter only applies once the index has actually
+        // built at least once (builtAt > 0). Before the first successful crawl - a cold start,
+        // or a rebuild that failed - every component would otherwise look "unused" and be
+        // dropped, turning the whole catalog blank instead of merely unfiltered.
+        if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.builtAt() > 0L) {
             return;
         }
         component.put("usageCount", usages.size());

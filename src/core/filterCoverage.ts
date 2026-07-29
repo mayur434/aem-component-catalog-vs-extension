@@ -22,6 +22,11 @@ export function ensureFilterCoverage(projectRoot: string): void {
       unique([
         topLevelRoot(jcrPathOf(paths.pageComponentDir(config), paths.uiApps)),
         topLevelRoot(jcrPathOf(paths.clientlibDir(config), paths.uiApps)),
+        // Deliberately the EXACT index node, never a bare /oak:index root: a filter root of
+        // /oak:index would take ownership of the whole tree and remove Adobe's own product
+        // indexes on deploy. Built from config rather than jcrPathOf, which does not reverse
+        // FileVault's filesystem name-mangling (_oak_index -> oak:index).
+        `/oak:index/${config.catalog.usageIndexName}`,
       ]),
     );
     patchFilter(vaultFilter(paths.uiConfig), [

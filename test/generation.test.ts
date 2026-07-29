@@ -13,11 +13,11 @@ describe('transactional generation', () => {
     fixture = createAemCloudFixture();
     const config = loadConfig(fixture.root);
     const initial = buildGenerationPlan(fixture.root, config);
-    expect(initial.items).toHaveLength(15);
+    expect(initial.items).toHaveLength(16);
     expect(initial.items.every((item) => item.status === 'create')).toBe(true);
 
     const firstResult = applyGenerationPlan(initial, { actor: 'test' });
-    expect(firstResult.created).toBe(15);
+    expect(firstResult.created).toBe(16);
     expect(firstResult.skipped).toBe(0);
     expect(fs.existsSync(path.join(fixture.root, '.aem-catalog-manifest.json'))).toBe(true);
 
@@ -55,6 +55,14 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => /allow jcr:read on \/apps\b(?!\/)/.test(script)),
     ).toBe(true);
+    // PRINCIPAL-based ACL, never a resource ACL. A resource ACL persists a rep:policy node
+    // UNDER the target, i.e. under the immutable /apps - and RepoInit runs twice on AEMaaCS
+    // (buildImage, then again at container startup when /apps is read-only). The second run
+    // then hits a read-only builder, SlingRepository never registers, and the pod fails to
+    // start. A principal ACL stores rep:principalPolicy under the service user's own home
+    // (mutable) and only references /apps as an effective path, so it never writes there.
+    expect(parsed.scripts.some((script) => script.startsWith('set principal ACL for'))).toBe(true);
+    expect(parsed.scripts.some((script) => /^set ACL for/m.test(script))).toBe(false);
     // Under the plain config/ folder (all run modes), not config.author-only: the core
     // bundle deploys to every tier by default, and the service-user mapping/usage-crawl
     // job have no run-mode guard of their own - config.author-only would leave them
@@ -74,56 +82,39 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => script.includes('allow jcr:read on /content')),
     ).toBe(true);
-    // Oak index via RepoInit (not a ui.content package): the usage crawl's
-    // "sling:resourceType LIKE '%/components/%'" query would otherwise fall back to a full
-    // unindexed repository traversal on every rebuild (confirmed live via Oak's own
-    // "Traversal query (query without index)... consider creating an index" log line).
-    // RepoInit runs with a privileged session and writes directly to the repository, so this
-    // needs neither ui.content nor any FileVault packaging opt-in.
-    // oak:QueryIndexDefinition has a mandatory "type" property, so a plain "create path" then
-    // a separate "set properties on" statement fails: RepoInit saves the bare node first,
-    // violating the constraint before the second statement ever runs (confirmed live via
-    // OakConstraint0021 "Mandatory properties '[type]' not found"). The "with properties"
-    // form (SLING-10740) sets it atomically as part of node creation.
-    expect(
-      parsed.scripts.some((script) =>
-        script.includes(
-          'create path (oak:QueryIndexDefinition) /oak:index/sample-site-component-usage-resourcetype-1 with properties',
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      parsed.scripts.some(
-        (script) =>
-          script.includes('/oak:index/sample-site-component-usage-resourcetype-1') &&
-          script.includes('set type{String} to "lucene"') &&
-          script.includes('set evaluatePathRestrictions{Boolean} to true') &&
-          script.includes('set includedPaths{String} to /content'),
-      ),
-    ).toBe(true);
-    expect(
-      parsed.scripts.some(
-        (script) =>
-          script.includes('indexRules/nt:base/properties/slingResourceType') &&
-          script.includes('set name{String} to "sling:resourceType"') &&
-          script.includes('set analyzed{Boolean} to true') &&
-          script.includes('set propertyIndex{Boolean} to true'),
-      ),
-    ).toBe(true);
+    // The Oak index must NOT be created by RepoInit. AEMaaCS installs and reindexes
+    // /oak:index definitions before the blue-green switchover, and only for definitions that
+    // arrive as code in ui.apps; RepoInit runs later, at bundle startup, so a RepoInit-created
+    // index never gets that managed reindex and silently returns nothing.
+    expect(parsed.scripts.some((script) => script.includes('/oak:index'))).toBe(false);
+
+    // It ships in ui.apps (the CODE package) instead, at the FileVault-mangled _oak_index
+    // path, with an AEMaaCS-compliant node name: <prefix>.<indexName>-custom-<version>.
+    const oakIndex = plan.items.find((item) => item.relativePath.includes('_oak_index'))!;
+    expect(oakIndex.relativePath.startsWith('ui.apps/')).toBe(true);
+    expect(oakIndex.relativePath).toContain('_oak_index/sam.componentUsage-custom-1/.content.xml');
+    expect(oakIndex.content).toContain('jcr:primaryType="oak:QueryIndexDefinition"');
+    expect(oakIndex.content).toContain('type="lucene"');
+    expect(oakIndex.content).toContain('includedPaths="[/content]"');
+    expect(oakIndex.content).toContain('name="sling:resourceType"');
+    expect(oakIndex.content).toContain('analyzed="{Boolean}true"');
     const usageService = plan.items.find((item) => item.relativePath.endsWith('ComponentUsageService.java'))!.content;
     expect(usageService).toContain('scheduler.expression=0 0 2 * * ?');
     expect(usageService).toContain('implements Runnable');
     // Sites use project proxies; usage must follow one level of sling:resourceSuperType.
     expect(usageService).toContain('sling:resourceSuperType');
     expect(usageService).toContain('libraryRelFor');
-    // Only published pages count as usage; drafts never replicated must not inflate counts.
-    // Uses AEM's standard ReplicationStatus adaptable (not a raw cq:lastReplicationAction read),
-    // which is correct on author or publish alike - no run-mode gating needed.
+    // "Live" is evaluated PER TIER. Replication-status properties are written on author at
+    // activation and are not reliably carried onto the replicated copy, so applying that check
+    // on publish would report zero usages for everything. On publish, presence in the
+    // repository IS the published state - hence the run-mode branch before the status check.
     expect(usageService).toContain('isPublished');
     expect(usageService).toContain('import com.day.cq.replication.ReplicationStatus;');
+    expect(usageService).toContain('import org.apache.sling.settings.SlingSettingsService;');
+    expect(usageService).toContain('if (!slingSettings.getRunModes().contains("author"))');
     expect(usageService).toContain('status.isActivated()');
     const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!.content;
-    expect(servlet).toContain('getRunModes().contains("author")');
+    expect(servlet).toContain('runModes.contains("author")');
     expect(servlet).toContain('ResourceChangeListener');
     expect(servlet).toContain('ASSET_ROOT = "/content/dam/sample-site/catalog"');
     expect(servlet).toContain('damThumbnail');
@@ -134,6 +125,11 @@ describe('transactional generation', () => {
     expect(servlet).toContain('wcm/components/container');
     // Discovery-first default: components with zero published usage still stay listed.
     expect(servlet).toContain('REQUIRE_PUBLISHED_USAGE = false');
+    // Author-only by default (the catalog exposes internal component structure and the page
+    // paths using each component), but the gate is a flag rather than a hardcoded run mode.
+    expect(servlet).toContain('SERVE_ON_PUBLISH = false');
+    expect(servlet).toContain('private boolean isEnabledRunMode()');
+    expect(servlet).not.toContain('if (!slingSettings.getRunModes().contains("author")) {');
     const script = plan.items.find((item) => item.relativePath.endsWith('scripts.js'))!.content;
     expect(script).toContain('var h = esc(md)');
     expect(script).toContain('fetchAll(endpoint)');
@@ -190,7 +186,12 @@ describe('transactional generation', () => {
     const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!
       .content;
     expect(servlet).toContain('REQUIRE_PUBLISHED_USAGE = true');
-    expect(servlet).toContain('if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty())');
+    // Fails OPEN: the filter only applies once the usage index has actually built
+    // (builtAt > 0). On a cold start or after a failed rebuild every component would
+    // otherwise look unused and be dropped, blanking the entire catalog.
+    expect(servlet).toContain(
+      'if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.builtAt() > 0L)',
+    );
   });
 
   it('adds the missing clientlib filter root so the package still builds', () => {

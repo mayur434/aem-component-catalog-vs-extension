@@ -4,6 +4,17 @@
  */
 import type { ComponentLibraryConfig } from './schema';
 
+/**
+ * AEMaaCS requires every fully-custom Oak index to be named
+ * `<prefix>.<indexName>-custom-<version>`, where the prefix is a 2-5 character vendor
+ * identifier that prevents collisions with Adobe's own product indexes. Derived from the
+ * appId's first segment so it is stable and recognisable per project.
+ */
+export function oakIndexPrefix(appId: string): string {
+  const letters = (appId.split('-')[0] || appId).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  return (letters.slice(0, 3) || 'cat').padEnd(2, 'x');
+}
+
 export function getDefaults(appId: string): ComponentLibraryConfig {
   return {
     schemaVersion: 2,
@@ -97,7 +108,14 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       // additions until someone happens to publish a page with them. Projects that want a
       // stricter "only what's live" view can opt in per project.
       requirePublishedUsage: false,
-      usageIndexName: `${appId}-component-usage-resourcetype-1`,
+      // AEMaaCS-mandated custom index name: <prefix>.<indexName>-custom-<version>.
+      // Bump the trailing number (never edit in place) whenever the definition changes —
+      // AEMaaCS treats each -custom-N node as a distinct, immutable index revision.
+      usageIndexName: `${oakIndexPrefix(appId)}.componentUsage-custom-1`,
+      // Author-only by default: the catalog exposes internal component structure and the
+      // page paths using each component, which is not information a public tier should
+      // serve unless the project has deliberately decided otherwise.
+      serveOnPublish: false,
     },
     governance: {
       policyFile: '.aem-catalog-policy.json',

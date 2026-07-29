@@ -101,6 +101,14 @@ export interface CatalogRuntimeConfig {
    * (e.g. -1 -> -2) if the index definition changes, to force Oak to reindex.
    */
   usageIndexName: string;
+  /**
+   * Whether the catalog endpoint also responds on publish. It always responds on author.
+   * Serving on publish makes component metadata (names, dialog fields) and the page paths
+   * using each component reachable by anything that can reach the publish tier, so the
+   * dispatcher filter is the real access gate there - this only decides whether the servlet
+   * responds at all.
+   */
+  serveOnPublish: boolean;
 }
 
 export interface GovernanceConfig {

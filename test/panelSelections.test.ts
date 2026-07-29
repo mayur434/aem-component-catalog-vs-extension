@@ -17,7 +17,7 @@ describe('config-panel selections merge (not clobber) the existing config', () =
     // set them directly - none of these are controlled by the visual panel.
     const before = loadConfig(fixture.root);
     before.catalog.requirePublishedUsage = true;
-    before.catalog.usageIndexName = 'sample-site-custom-index-7';
+    before.catalog.usageIndexName = 'smpl.componentUsage-custom-7';
     before.taxonomy.categoryLabels = { haisha: 'Haisha Paints' };
     before.governance.ownerProperty = 'customOwnerProp';
     saveConfig(fixture.root, before);
@@ -41,7 +41,7 @@ describe('config-panel selections merge (not clobber) the existing config', () =
     // the Oak index name vanished after a Generate click from a config-panel build that
     // still had this bug).
     expect(after.catalog.requirePublishedUsage).toBe(true);
-    expect(after.catalog.usageIndexName).toBe('sample-site-custom-index-7');
+    expect(after.catalog.usageIndexName).toBe('smpl.componentUsage-custom-7');
     expect(after.taxonomy.categoryLabels).toEqual({ haisha: 'Haisha Paints' });
     expect(after.governance.ownerProperty).toBe('customOwnerProp');
 

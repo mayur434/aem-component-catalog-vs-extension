@@ -205,6 +205,24 @@ function inspectPackageSeparation(root: string, add: FindingAdder): void {
     );
   } else {
     for (const filterRoot of readFilterRoots(uiAppsFilter)) {
+      // /oak:index is the one sanctioned exception. Adobe requires custom index definitions
+      // to ship in the CODE package - "although Oak indexes are mutable at run time, they
+      // must be deployed as code so that they can be installed before any mutable packages
+      // are installed" - so an /oak:index root in ui.apps is correct, not a violation. A bare
+      // /oak:index root is still wrong: it would take ownership of the whole tree and remove
+      // Adobe's own product indexes on deploy, so only specific index nodes are allowed.
+      if (filterRoot === '/oak:index') {
+        add(
+          'aemaacs.package-separation',
+          'error',
+          'ui.apps claims the entire /oak:index tree',
+          'A bare /oak:index filter root removes the product indexes shipped by AEM on deploy.',
+          path.relative(root, uiAppsFilter),
+          'Declare one filter root per custom index, e.g. /oak:index/acme.myIndex-custom-1.',
+        );
+        continue;
+      }
+      if (filterRoot.startsWith('/oak:index/')) continue;
       if (!filterRoot.startsWith('/apps/')) {
         add(
           'aemaacs.package-separation',

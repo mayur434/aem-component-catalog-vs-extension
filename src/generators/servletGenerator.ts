@@ -46,6 +46,7 @@ export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): Ge
         cacheSeconds: config.catalog.cacheSeconds,
         pageSize: config.catalog.pageSize,
         requirePublishedUsage: config.catalog.requirePublishedUsage,
+        serveOnPublish: config.catalog.serveOnPublish,
       }),
     },
   ];

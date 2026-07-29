@@ -4,6 +4,7 @@ import type { ComponentLibraryConfig } from '../config/schema';
 import { validateConfig } from '../config/loader';
 import type { GeneratedArtifact } from './artifact';
 import { planClientlib } from '../generators/clientlibGenerator';
+import { planOakIndex } from '../generators/oakIndexGenerator';
 import { planOsgiConfigs } from '../generators/osgiConfigGenerator';
 import { planPageComponent } from '../generators/pageComponentGenerator';
 import { planServlet } from '../generators/servletGenerator';
@@ -21,6 +22,7 @@ import {
 import { assertPathInside, resolveExistingPath, safeRelativePath } from '../utils/pathSecurity';
 import { acquireLock } from '../utils/lock';
 import { ensureFilterCoverage } from './filterCoverage';
+import { ensureOakIndexPackagingAllowed } from './oakIndexPackaging';
 
 export type PlanStatus = 'create' | 'update' | 'unchanged' | 'conflict';
 
@@ -87,6 +89,7 @@ export function buildGenerationPlan(projectRoot: string, config: ComponentLibrar
     ...planPageComponent(config, paths),
     ...planClientlib(config, paths),
     ...planOsgiConfigs(config, paths),
+    ...planOakIndex(config, paths),
   ];
   ensureUniqueArtifacts(paths.root, artifacts);
 
@@ -111,6 +114,7 @@ export function applyGenerationPlan(plan: GenerationPlan, options: ApplyOptions 
   // Keep the FileVault filters covering the generated /apps paths so the content
   // package builds (and deploys) — runs even on a no-op apply.
   ensureFilterCoverage(plan.projectRoot);
+  ensureOakIndexPackagingAllowed(plan.projectRoot);
 
   const actionable = plan.items.filter(
     (item) =>
