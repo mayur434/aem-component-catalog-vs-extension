@@ -88,12 +88,23 @@ function ensureFlag(block: string, flag: string): string {
   );
 }
 
+/**
+ * Must be the bare /oak:index root, not the specific index node. Narrowing it to
+ * /oak:index/<name> was tried and rejected by jackrabbit-filter: "Filter root's ancestor
+ * '/oak:index' is not covered by any of the specified dependencies nor a valid root" - the
+ * validator wants the ANCESTOR declared, which is why Adobe documents this exact form.
+ *
+ * Caveat worth knowing: this package ships an empty jcr_root, and FileVault's default replace
+ * mode on an empty filter root deletes everything beneath it. It is never installed by the
+ * pipeline (not embedded in `all`, and cloudManagerTarget=none), but installing the
+ * ui.apps.structure zip DIRECTLY would remove every Oak index. Same already applies to its
+ * pre-existing /apps root. Do not hand-install a repository-structure package.
+ */
 function patchStructure(pomFile: string): void {
   const content = read(pomFile);
   if (!content) return;
   if (/<root>\/oak:index<\/root>/.test(content)) return;
-  const filtersPattern = /<filters>/;
-  if (!filtersPattern.test(content)) return;
+  if (!/<filters>/.test(content)) return;
   write(
     pomFile,
     content.replace(
