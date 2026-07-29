@@ -74,6 +74,13 @@ export function resolveAemPaths(projectRoot: string): AemPaths {
       );
     },
     osgiConfigDir(config) {
+      // Applies to every run mode (author and publish), not just config.author. The core
+      // bundle itself deploys to both tiers by default (nothing tier-restricts it at the
+      // package level), and ComponentUsageService/the service-user mapping have no run-mode
+      // guard of their own - if this lived under config.author only, the bundle would still
+      // activate on publish but fail every night with a LoginException (no subservice mapping
+      // there). The catalog UI itself still only responds on author: that gate is a runtime
+      // check inside the servlet, unrelated to which OSGi config folder this is.
       return within(
         path.join(
           uiConfig,
@@ -84,7 +91,7 @@ export function resolveAemPaths(projectRoot: string): AemPaths {
           'apps',
           config.appId,
           'osgiconfig',
-          'config.author',
+          'config',
         ),
       );
     },

@@ -288,12 +288,18 @@ function inspectRepoInit(root: string, add: FindingAdder): void {
       if (!Array.isArray(parsed.scripts) || parsed.scripts.some((script) => typeof script !== 'string')) {
         throw new Error('The scripts property must be an array of strings.');
       }
-      if (file.includes('component') && !file.split(path.sep).includes('config.author')) {
+      // The RepoInit config must apply on author (whether via the plain config/ folder,
+      // applying to every run mode, or config.author specifically) - the catalog page,
+      // service user, and Oak index all need to exist there. It must NOT be scoped to
+      // config.publish only, which would exclude author entirely and break the catalog
+      // while never actually exposing anything on publish (the servlet's own runtime
+      // check keeps the UI author-only regardless of where this config applies).
+      if (file.includes('component') && file.split(path.sep).includes('config.publish')) {
         add(
           'catalog.author-only',
           'error',
-          'Catalog RepoInit is not author-scoped',
-          'The component catalog RepoInit configuration must be placed under config.author.',
+          'Catalog RepoInit is scoped to publish only',
+          'The component catalog RepoInit configuration must apply on author (config/ or config.author), not config.publish only.',
           path.relative(root, file),
         );
       }

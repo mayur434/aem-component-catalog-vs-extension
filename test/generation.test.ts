@@ -55,7 +55,14 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => /allow jcr:read on \/apps\b(?!\/)/.test(script)),
     ).toBe(true);
-    expect(repoinit.relativePath).toContain('config.author');
+    // Under the plain config/ folder (all run modes), not config.author-only: the core
+    // bundle deploys to every tier by default, and the service-user mapping/usage-crawl
+    // job have no run-mode guard of their own - config.author-only would leave them
+    // failing (LoginException) every night on publish. The catalog UI itself still stays
+    // author-only via the servlet's own runtime check, independent of this.
+    expect(repoinit.relativePath.split('/')).toContain('config');
+    expect(repoinit.relativePath).not.toContain('config.author');
+    expect(repoinit.relativePath).not.toContain('config.publish');
     // DAM-managed images: servlet reads /content/dam/<app>/catalog, RepoInit provisions it.
     expect(
       parsed.scripts.some((script) => script.includes('create path (sling:OrderedFolder) /content/dam/sample-site/catalog')),
