@@ -313,11 +313,12 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         component.put("status", status);
         component.put("version", version);
         List<Map<String, String>> usages = usageService.pagesFor(relativeName);
-        // Fail OPEN, never closed. The usage filter only applies once the index has actually
-        // built at least once (builtAt > 0). Before the first successful crawl - a cold start,
-        // or a rebuild that failed - every component would otherwise look "unused" and be
-        // dropped, turning the whole catalog blank instead of merely unfiltered.
-        if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.builtAt() > 0L) {
+        // Fail OPEN, never closed. The filter only applies on an instance that actually has
+        // usage data. Three situations produce an empty index and must NOT hide everything:
+        // a cold start before the first crawl, a crawl that failed, and - the common one -
+        // an environment where no content is live yet, so nothing is "in use". In all three
+        // the honest answer is an unfiltered catalog, not an empty one.
+        if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.hasUsageData()) {
             return;
         }
         component.put("usageCount", usages.size());

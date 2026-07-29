@@ -91,6 +91,19 @@ public final class ComponentUsageService implements Runnable {
         return builtAt;
     }
 
+    /**
+     * Whether this instance has any usage data at all, i.e. at least one component was found
+     * in use somewhere. Distinguishes "this component happens to be unused" from "this
+     * environment has no usage information", which are very different situations: the first
+     * is a real signal worth filtering on, the second just means nothing is live here yet
+     * (a fresh environment, or content that was never activated). Callers must not filter
+     * components out on the strength of an index that found nothing at all - that yields an
+     * empty catalog rather than an unfiltered one.
+     */
+    public boolean hasUsageData() {
+        return !usageByComponent.isEmpty();
+    }
+
     private void rebuild() {
         Map<String, Object> auth = Collections.<String, Object>singletonMap(
                 ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME);

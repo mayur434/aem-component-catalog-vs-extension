@@ -230,12 +230,17 @@ describe('transactional generation', () => {
     const servlet = plan.items.find((item) => item.relativePath.endsWith('ComponentLibraryServlet.java'))!
       .content;
     expect(servlet).toContain('REQUIRE_PUBLISHED_USAGE = true');
-    // Fails OPEN: the filter only applies once the usage index has actually built
-    // (builtAt > 0). On a cold start or after a failed rebuild every component would
-    // otherwise look unused and be dropped, blanking the entire catalog.
+    // Fails OPEN: the filter only applies on an instance that actually has usage data.
+    // A cold start, a failed crawl, or - most commonly - an environment where nothing is
+    // live yet all produce an empty index, and hiding every component in those cases
+    // yields a blank catalog rather than an unfiltered one.
     expect(servlet).toContain(
-      'if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.builtAt() > 0L)',
+      'if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.hasUsageData())',
     );
+    const usage = plan.items.find((item) => item.relativePath.endsWith('ComponentUsageService.java'))!
+      .content;
+    expect(usage).toContain('public boolean hasUsageData()');
+    expect(usage).toContain('return !usageByComponent.isEmpty();');
   });
 
   it('adds the missing clientlib filter root so the package still builds', () => {
