@@ -185,9 +185,7 @@ describe('transactional generation', () => {
     // Author-only (the default): the dispatcher never sees these requests, so no file.
     expect(config.catalog.serveOnPublish).toBe(false);
     const authorOnly = buildGenerationPlan(fixture.root, config);
-    expect(authorOnly.items.some((item) => item.relativePath.includes('conf.dispatcher.d'))).toBe(
-      false,
-    );
+    expect(authorOnly.items.some((item) => item.relativePath.endsWith('.any'))).toBe(false);
 
     config.catalog.serveOnPublish = true;
     const onPublish = buildGenerationPlan(fixture.root, config);
@@ -196,10 +194,12 @@ describe('transactional generation', () => {
     )!.content;
     expect(servlet).toContain('SERVE_ON_PUBLISH = true');
 
-    const filters = onPublish.items.find((item) => item.relativePath.includes('conf.dispatcher.d'))!;
-    expect(filters.relativePath).toBe(
-      'dispatcher/src/conf.dispatcher.d/filters/component-catalog-filters.any',
-    );
+    const filters = onPublish.items.find((item) => item.relativePath.endsWith('.any'))!;
+    // A single loose file at the project root, NOT a dispatcher/src/conf.dispatcher.d tree.
+    // Generating that folder layout here would look like a dispatcher module while having
+    // no pom.xml and being in no reactor, so nothing would ever build or deploy it.
+    expect(filters.relativePath).toBe('component-catalog-dispatcher-filters.any');
+    expect(filters.content).toContain('THIS FILE IS NOT DEPLOYED BY THIS PROJECT');
     // The default AEMaaCS filter set denies by default, so every route the micro-site
     // actually uses needs an explicit allow - including the two that are easy to miss:
     // the .html/<component> SUFFIX used by detail views, and the selector-pinned

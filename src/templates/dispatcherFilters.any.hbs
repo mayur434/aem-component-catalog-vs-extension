@@ -5,10 +5,13 @@
 # list does NOT cover this micro-site, so without these rules the catalog page renders
 # but its data endpoint is blocked and the listing comes back empty.
 #
-# Include this from your farm's filter section, AFTER the default filters so these
-# allows are additive:
+# THIS FILE IS NOT DEPLOYED BY THIS PROJECT. Cloud Manager only applies dispatcher
+# configuration from the repository its own pipeline builds. Copy this file into the
+# repository that owns the dispatcher config for the target program, placing it in
+# src/conf.dispatcher.d/filters/, then include it from that farm's filter section AFTER
+# the default filters so these allows are additive:
 #
-#     $include "./filters/component-catalog-filters.any"
+#     $include "./component-catalog-filters.any"
 #
 # NOTE ON ACCESS CONTROL: these rules make the catalog REACHABLE on publish. They are not
 # an authentication mechanism. The catalog exposes internal component names, dialog
