@@ -178,6 +178,50 @@ describe('transactional generation', () => {
     expect(pageDef).not.toContain('sample-site/components/page"');
   });
 
+  it('generates dispatcher allow rules only when the catalog serves on publish', () => {
+    fixture = createAemCloudFixture();
+    const config = loadConfig(fixture.root);
+
+    // Author-only (the default): the dispatcher never sees these requests, so no file.
+    expect(config.catalog.serveOnPublish).toBe(false);
+    const authorOnly = buildGenerationPlan(fixture.root, config);
+    expect(authorOnly.items.some((item) => item.relativePath.includes('conf.dispatcher.d'))).toBe(
+      false,
+    );
+
+    config.catalog.serveOnPublish = true;
+    const onPublish = buildGenerationPlan(fixture.root, config);
+    const servlet = onPublish.items.find((item) =>
+      item.relativePath.endsWith('ComponentLibraryServlet.java'),
+    )!.content;
+    expect(servlet).toContain('SERVE_ON_PUBLISH = true');
+
+    const filters = onPublish.items.find((item) => item.relativePath.includes('conf.dispatcher.d'))!;
+    expect(filters.relativePath).toBe(
+      'dispatcher/src/conf.dispatcher.d/filters/component-catalog-filters.any',
+    );
+    // The default AEMaaCS filter set denies by default, so every route the micro-site
+    // actually uses needs an explicit allow - including the two that are easy to miss:
+    // the .html/<component> SUFFIX used by detail views, and the selector-pinned
+    // components.json data endpoint (without which the page renders but lists nothing).
+    expect(filters.content).toContain('/suffix "*"');
+    expect(filters.content).toContain('/selectors "components"');
+    expect(filters.content).toContain('/extension "json"');
+    expect(filters.content).toContain('/content/sample-site/component-library');
+    expect(filters.content).toContain('/etc.clientlibs/sample-site/clientlibs/*');
+    expect(filters.content).toContain('/content/dam/sample-site/catalog/*');
+    // Pinning the selector matters: a bare .json allow would open arbitrary traversal of
+    // the content tree through Sling's default GET servlet. Assert it per rule block, so
+    // every rule that permits json also constrains the selector.
+    const jsonRules = filters.content
+      .split(/\n(?=\/\d+\s*\{)/)
+      .filter((rule) => /\/extension\s+"json"/.test(rule));
+    expect(jsonRules.length).toBeGreaterThan(0);
+    for (const rule of jsonRules) {
+      expect(rule).toMatch(/\/selectors\s+"components"/);
+    }
+  });
+
   it('opts a project into hiding components with zero published usage', () => {
     fixture = createAemCloudFixture();
     const config = loadConfig(fixture.root);
