@@ -111,7 +111,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     @Override
     protected void doGet(SlingHttpServletRequest request, SlingHttpServletResponse response) throws IOException {
         secureHeaders(response);
+        LOG.info("[DIAG] doGet called; runModes={}", slingSettings.getRunModes());
         if (!isEnabledRunMode()) {
+            LOG.warn("[DIAG] Servlet disabled for current run modes; returning 404");
             response.sendError(SlingHttpServletResponse.SC_NOT_FOUND);
             return;
         }
@@ -119,6 +121,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         int offset = boundedInteger(request.getParameter("offset"), 0, 0, Integer.MAX_VALUE);
         int limit = boundedInteger(request.getParameter("limit"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
         try {
+            LOG.info("[DIAG] Building catalog; requestResolver user={}", request.getResourceResolver().getUserID());
+            LOG.info("[DIAG] usageService state: hasUsageData={}, builtAt={}", usageService.hasUsageData(), usageService.builtAt());
+            LOG.info("[DIAG] REQUIRE_PUBLISHED_USAGE={}, SERVE_ON_PUBLISH={}", REQUIRE_PUBLISHED_USAGE, SERVE_ON_PUBLISH);
             CatalogData catalog = getCatalog(request.getResourceResolver());
             int from = Math.min(offset, catalog.components.size());
             int to = Math.min(from + limit, catalog.components.size());
@@ -184,26 +189,52 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
                 SUBSERVICE_NAME
         );
         try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(authentication)) {
-            // On AEMaaCS, principal-based ACLs store the grant under the service user's home
-            // (/home/users/system/...), not under /apps.  The node at COMPONENTS_ROOT may
-            // therefore be visible to the service user while its children are not — the
-            // composite authorization model can make the root readable without cascading to
-            // child traversal.  Checking root != null alone is not sufficient; we also verify
-            // that at least one child is visible.  When the service resolver cannot fully
-            // traverse /apps, the request resolver (logged-in author user) is used instead.
+            LOG.info("[DIAG] Service resolver obtained; userId={}", serviceResolver.getUserID());
+
             ResourceResolver resolver = serviceResolver;
             Resource root = resolver.getResource(COMPONENTS_ROOT);
-            if ((root == null || !root.listChildren().hasNext()) && requestResolver != null) {
-                LOG.info("Service user cannot fully read {}; falling back to request resolver", COMPONENTS_ROOT);
+            LOG.info("[DIAG] Service resolver root lookup: path={}, found={}", COMPONENTS_ROOT, root != null);
+
+            boolean hasChildren = false;
+            if (root != null) {
+                hasChildren = root.listChildren().hasNext();
+                LOG.info("[DIAG] Service resolver root children visible={}", hasChildren);
+                if (hasChildren) {
+                    int childCount = 0;
+                    for (Resource child : root.getChildren()) {
+                        LOG.info("[DIAG]   Service resolver child: name={}, type={}",
+                                child.getName(), child.getValueMap().get("jcr:primaryType", "?"));
+                        childCount++;
+                    }
+                    LOG.info("[DIAG] Service resolver total direct children of root: {}", childCount);
+                }
+            }
+
+            if ((root == null || !hasChildren) && requestResolver != null) {
+                LOG.info("[DIAG] Falling back to request resolver (root={}, hasChildren={}, requestUser={})",
+                        root != null, hasChildren, requestResolver.getUserID());
                 resolver = requestResolver;
                 root = resolver.getResource(COMPONENTS_ROOT);
+                LOG.info("[DIAG] Request resolver root lookup: found={}", root != null);
+                if (root != null) {
+                    int childCount = 0;
+                    for (Resource child : root.getChildren()) {
+                        childCount++;
+                    }
+                    LOG.info("[DIAG] Request resolver total direct children of root: {}", childCount);
+                }
             }
+
             if (root == null) {
+                LOG.error("[DIAG] COMPONENTS_ROOT not found by either resolver: {}", COMPONENTS_ROOT);
                 throw new IllegalStateException("Configured component root does not exist: " + COMPONENTS_ROOT);
             }
+
+            LOG.info("[DIAG] Using resolver: userId={}", resolver.getUserID());
             List<Map<String, Object>> components = new ArrayList<>();
             Map<String, Integer> groups = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             collectComponents(root, components, groups);
+            LOG.info("[DIAG] collectComponents finished: {} components found, {} groups", components.size(), groups.size());
             // Rank the most-used components first; ties fall back to title order.
             components.sort((left, right) -> {
                 int byUsage = Integer.compare(
@@ -228,14 +259,32 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             List<Map<String, Object>> components,
             Map<String, Integer> groups
     ) {
+        LOG.info("[DIAG] collectComponents: scanning parent={}", parent.getPath());
+        int childIndex = 0;
         Iterator<Resource> children = parent.listChildren();
         while (children.hasNext()) {
             Resource resource = children.next();
+            childIndex++;
             ValueMap properties = resource.getValueMap();
-            if ("cq:Component".equals(properties.get("jcr:primaryType", String.class))) {
+            String primaryType = properties.get("jcr:primaryType", "?");
+            LOG.info("[DIAG]   child #{}: name={}, primaryType={}, path={}",
+                    childIndex, resource.getName(), primaryType, resource.getPath());
+            if ("cq:Component".equals(primaryType)) {
+                LOG.info("[DIAG]   -> is cq:Component, calling addComponent");
+                int before = components.size();
                 addComponent(resource, properties, components, groups);
+                if (components.size() > before) {
+                    LOG.info("[DIAG]   -> component ADDED: {}", resource.getName());
+                } else {
+                    LOG.info("[DIAG]   -> component FILTERED OUT: {}", resource.getName());
+                }
             }
             collectComponents(resource, components, groups);
+        }
+        if (childIndex == 0) {
+            LOG.info("[DIAG] collectComponents: parent={} has NO children", parent.getPath());
+        } else {
+            LOG.info("[DIAG] collectComponents: parent={} had {} children", parent.getPath(), childIndex);
         }
     }
 
@@ -266,12 +315,12 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     ) {
         String group = properties.get("componentGroup", String.class);
         if (group == null || EXCLUDED_GROUPS.contains(group)) {
+            LOG.info("[DIAG] addComponent SKIP (group null/hidden): name={}, group={}", resource.getName(), group);
             return;
         }
-        // Structural/layout building blocks (containers, parsys/grid, page) are used on every page
-        // but add no value in a showcase — exclude them by default.
         String superType = properties.get("sling:resourceSuperType", String.class);
         if (isStructural(resource.getName(), superType)) {
+            LOG.info("[DIAG] addComponent SKIP (structural): name={}, superType={}", resource.getName(), superType);
             return;
         }
         String resourceType = resource.getPath().replaceFirst("^/apps/", "");
@@ -332,8 +381,11 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         // an environment where no content is live yet, so nothing is "in use". In all three
         // the honest answer is an unfiltered catalog, not an empty one.
         if (REQUIRE_PUBLISHED_USAGE && usages.isEmpty() && usageService.hasUsageData()) {
+            LOG.info("[DIAG] addComponent SKIP (no published usage): name={}, usageDataAvailable=true", resource.getName());
             return;
         }
+        LOG.info("[DIAG] addComponent ACCEPT: name={}, group={}, category={}, usageCount={}",
+                resource.getName(), group, category, usages.size());
         component.put("usageCount", usages.size());
         if (!usages.isEmpty()) component.put("usages", usages);
         component.put("tags", readTags(properties));
