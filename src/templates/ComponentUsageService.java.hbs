@@ -109,6 +109,12 @@ public final class ComponentUsageService implements Runnable {
                 ResourceResolverFactory.SUBSERVICE, SUBSERVICE_NAME);
         try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(auth)) {
             Set<String> componentNames = collectComponentNames(resolver);
+            if (componentNames.isEmpty()) {
+                LOG.warn("No library components found under {}; the service user may lack jcr:read on /apps",
+                        COMPONENTS_ROOT);
+            } else {
+                LOG.info("Found {} library component definitions under {}", componentNames.size(), COMPONENTS_ROOT);
+            }
             Map<String, LinkedHashMap<String, Map<String, String>>> accumulator =
                     new HashMap<String, LinkedHashMap<String, Map<String, String>>>();
             // resourceType -> library component rel (or null), memoised so each proxy is resolved once.
@@ -117,8 +123,12 @@ public final class ComponentUsageService implements Runnable {
             String statement = "SELECT n.[jcr:path] FROM [nt:base] AS n "
                     + "WHERE ISDESCENDANTNODE(n, '/content') AND n.[sling:resourceType] LIKE '%" + SEGMENT + "%'";
             Iterator<Resource> hits = resolver.findResources(statement, Query.JCR_SQL2);
+            int hitCount = 0;
+            int matchedCount = 0;
+            int unpublishedCount = 0;
             while (hits.hasNext()) {
                 Resource resource = hits.next();
+                hitCount++;
                 String resourceType = resource.getValueMap().get("sling:resourceType", String.class);
                 if (resourceType == null) {
                     continue;
@@ -129,6 +139,7 @@ public final class ComponentUsageService implements Runnable {
                 if (componentName == null) {
                     continue;
                 }
+                matchedCount++;
                 Resource page = pageOf(resource);
                 if (page == null) {
                     continue;
@@ -137,9 +148,8 @@ public final class ComponentUsageService implements Runnable {
                 if (isExcluded(pagePath)) {
                     continue;
                 }
-                // Only pages currently live on publish count as real usage; draft/unpublished
-                // authoring work would otherwise inflate counts with content nobody can see.
                 if (!isPublished(page)) {
+                    unpublishedCount++;
                     continue;
                 }
                 accumulator
@@ -153,7 +163,9 @@ public final class ComponentUsageService implements Runnable {
             }
             usageByComponent = next;
             builtAt = System.currentTimeMillis();
-            LOG.info("Component usage index rebuilt: {} components in use across /content", next.size());
+            LOG.info("Component usage index rebuilt: {} components in use across /content"
+                    + " (query hits={}, matched library={}, filtered unpublished={})",
+                    next.size(), hitCount, matchedCount, unpublishedCount);
         } catch (LoginException e) {
             LOG.error("Component usage index: unable to obtain the service resolver", e);
         } catch (RuntimeException e) {

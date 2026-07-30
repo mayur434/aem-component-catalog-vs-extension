@@ -119,7 +119,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         int offset = boundedInteger(request.getParameter("offset"), 0, 0, Integer.MAX_VALUE);
         int limit = boundedInteger(request.getParameter("limit"), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
         try {
-            CatalogData catalog = getCatalog();
+            CatalogData catalog = getCatalog(request.getResourceResolver());
             int from = Math.min(offset, catalog.components.size());
             int to = Math.min(from + limit, catalog.components.size());
             Map<String, Object> result = new LinkedHashMap<>();
@@ -161,7 +161,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
         return SERVE_ON_PUBLISH && runModes.contains("publish");
     }
 
-    private CatalogData getCatalog() throws LoginException {
+    private CatalogData getCatalog(ResourceResolver requestResolver) throws LoginException {
         CacheEntry current = cache;
         long now = System.currentTimeMillis();
         if (current != null && now - current.createdAt <= CACHE_MILLIS) {
@@ -172,21 +172,31 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             if (current != null && now - current.createdAt <= CACHE_MILLIS) {
                 return current.data;
             }
-            CatalogData built = buildCatalog();
+            CatalogData built = buildCatalog(requestResolver);
             cache = new CacheEntry(now, built);
             return built;
         }
     }
 
-    private CatalogData buildCatalog() throws LoginException {
+    private CatalogData buildCatalog(ResourceResolver requestResolver) throws LoginException {
         Map<String, Object> authentication = Collections.<String, Object>singletonMap(
                 ResourceResolverFactory.SUBSERVICE,
                 SUBSERVICE_NAME
         );
-        try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(authentication)) {
+        try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(authentication)) {
+            // On AEMaaCS, principal-based ACLs for /apps may not be effective even though they
+            // were applied by repoinit. The service user can always read /content, but /apps
+            // access can fail silently. When that happens, fall back to the request resolver
+            // (on author the logged-in user always has full /apps access).
+            ResourceResolver resolver = serviceResolver;
             Resource root = resolver.getResource(COMPONENTS_ROOT);
+            if (root == null && requestResolver != null) {
+                LOG.info("Service user cannot read {}; falling back to request resolver", COMPONENTS_ROOT);
+                resolver = requestResolver;
+                root = resolver.getResource(COMPONENTS_ROOT);
+            }
             if (root == null) {
-                throw new IllegalStateException("Configured component root does not exist");
+                throw new IllegalStateException("Configured component root does not exist: " + COMPONENTS_ROOT);
             }
             List<Map<String, Object>> components = new ArrayList<>();
             Map<String, Integer> groups = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
