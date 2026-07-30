@@ -184,14 +184,17 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
                 SUBSERVICE_NAME
         );
         try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(authentication)) {
-            // On AEMaaCS, principal-based ACLs for /apps may not be effective even though they
-            // were applied by repoinit. The service user can always read /content, but /apps
-            // access can fail silently. When that happens, fall back to the request resolver
-            // (on author the logged-in user always has full /apps access).
+            // On AEMaaCS, principal-based ACLs store the grant under the service user's home
+            // (/home/users/system/...), not under /apps.  The node at COMPONENTS_ROOT may
+            // therefore be visible to the service user while its children are not — the
+            // composite authorization model can make the root readable without cascading to
+            // child traversal.  Checking root != null alone is not sufficient; we also verify
+            // that at least one child is visible.  When the service resolver cannot fully
+            // traverse /apps, the request resolver (logged-in author user) is used instead.
             ResourceResolver resolver = serviceResolver;
             Resource root = resolver.getResource(COMPONENTS_ROOT);
-            if (root == null && requestResolver != null) {
-                LOG.info("Service user cannot read {}; falling back to request resolver", COMPONENTS_ROOT);
+            if ((root == null || !root.listChildren().hasNext()) && requestResolver != null) {
+                LOG.info("Service user cannot fully read {}; falling back to request resolver", COMPONENTS_ROOT);
                 resolver = requestResolver;
                 root = resolver.getResource(COMPONENTS_ROOT);
             }
