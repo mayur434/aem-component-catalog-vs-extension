@@ -52,7 +52,13 @@
         <div class="pcl-toolbar__inner">
             <div class="pcl-search">
                 <svg class="pcl-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="search" class="pcl-search__input" aria-label="Search components" placeholder="Search components…" />
+                <input type="search" class="pcl-search__input" aria-label="Search components" placeholder="Search components… (press / to focus)" />
+            </div>
+            <div class="pcl-search-scope">
+                <select id="pcl-search-scope" class="pcl-search-scope__select" aria-label="Search scope">
+                    <option value="all">All</option>
+                    <option value="fields">Authoring options</option>
+                </select>
             </div>
             <div class="pcl-sort">
                 <label class="pcl-sort__label" for="pcl-sort">Sort</label>
@@ -67,6 +73,11 @@
         {{#if features.qualityScore}}
         <div class="pcl-metrics" id="pcl-metrics"></div>
         {{/if}}
+    </div>
+
+    <!--/* RESULTS BAR — shown only when filters are active */-->
+    <div class="pcl-results-bar" id="pcl-results-bar" style="display:none;">
+        <span>Showing <strong id="pcl-filtered-count">0</strong> of <span id="pcl-results-total">0</span> components</span>
     </div>
 
     <!--/* MAIN CONTENT — JS renders listing grid or detail view here */-->
@@ -109,6 +120,28 @@
             <ul class="pcl-usage-modal__list" id="pcl-usage-modal-list"></ul>
         </div>
     </div>
+
+    <!--/* KEYBOARD SHORTCUTS MODAL */-->
+    <div class="pcl-shortcuts-modal" id="pcl-shortcuts-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Keyboard shortcuts">
+        <div class="pcl-shortcuts-modal__backdrop"></div>
+        <div class="pcl-shortcuts-modal__panel">
+            <div class="pcl-shortcuts-modal__head">
+                <h3 class="pcl-shortcuts-modal__title">Keyboard Shortcuts</h3>
+                <button type="button" class="pcl-shortcuts-modal__close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="pcl-shortcuts-modal__body">
+                <div class="pcl-shortcut"><kbd>/</kbd><span>Focus search</span></div>
+                <div class="pcl-shortcut"><kbd>Esc</kbd><span>Clear search / close modal</span></div>
+                <div class="pcl-shortcut"><kbd>&#x2191; &#x2193;</kbd><span>Navigate cards</span></div>
+                <div class="pcl-shortcut"><kbd>Enter</kbd><span>Open focused card</span></div>
+                <div class="pcl-shortcut"><kbd>f</kbd><span>Toggle favorites filter</span></div>
+                <div class="pcl-shortcut"><kbd>?</kbd><span>Show this help</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!--/* TOAST NOTIFICATION */-->
+    <div class="pcl-toast" id="pcl-toast" role="status" aria-live="polite"></div>
 
     <!--/* FOOTER */-->
     <footer class="pcl-footer">

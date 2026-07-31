@@ -10,18 +10,22 @@ import { discoverWorkspaceProjects } from '../commands/projectSelection';
 
 // ─── Actions Tree ────────────────────────────────────────────────
 
-export class ActionsProvider implements vscode.TreeDataProvider<ActionItem> {
-  getTreeItem(element: ActionItem): vscode.TreeItem {
+type ActionTreeItem = ActionItem | SeparatorItem;
+
+export class ActionsProvider implements vscode.TreeDataProvider<ActionTreeItem> {
+  getTreeItem(element: ActionTreeItem): vscode.TreeItem {
     return element;
   }
 
-  getChildren(): ActionItem[] {
+  getChildren(): ActionTreeItem[] {
     return [
       new ActionItem('Configure & Generate Micro-site', 'aemComponentLibrary.configure', '$(rocket)'),
       new ActionItem('Generate (no prompts)', 'aemComponentLibrary.generate', '$(play)'),
       new ActionItem('Deploy to Local AEM', 'aemComponentLibrary.deployLocal', '$(cloud-upload)'),
       new ActionItem('Preview Changes', 'aemComponentLibrary.preview', '$(eye)'),
       new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)'),
+      new SeparatorItem('Tech Audit'),
+      new ActionItem('Run Component Audit', 'aemComponentLibrary.audit', '$(checklist)'),
     ];
   }
 }
@@ -31,6 +35,14 @@ class ActionItem extends vscode.TreeItem {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.command = { command: commandId, title: label };
     this.iconPath = new vscode.ThemeIcon(icon.replace('$(', '').replace(')', ''));
+  }
+}
+
+class SeparatorItem extends vscode.TreeItem {
+  constructor(label: string) {
+    super(`── ${label} ──`, vscode.TreeItemCollapsibleState.None);
+    this.description = '';
+    this.iconPath = new vscode.ThemeIcon('dash');
   }
 }
 
@@ -59,15 +71,17 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
 
     const projects = discoverWorkspaceProjects();
     if (projects.length === 0) {
-      return [new ProjectItem('No AEMaaCS projects found', '', 'warning')];
+      return [new ProjectItem('No AEM projects found', '', 'warning')];
     }
 
     return projects.map((p) => {
       const hasConfig = configExists(p.root);
+      const platformLabel = p.platform === 'aemaacs' ? 'AEMaaCS' : 'AEM AMS';
       const item = new ProjectItem(p.artifactId, p.root, hasConfig ? 'pass' : 'circle-large-outline');
-      item.description = hasConfig ? 'configured' : 'not configured';
-      item.tooltip = `${p.groupId}:${p.artifactId}:${p.version}\n${p.root}\nModules: ${p.modules.join(', ')}`;
+      item.description = `${platformLabel} · ${hasConfig ? 'configured' : 'not configured'}`;
+      item.tooltip = `${p.groupId}:${p.artifactId}:${p.version}\nPlatform: ${platformLabel}\n${p.root}\nModules: ${p.modules.join(', ')}`;
       item.children = [
+        new ProjectItem(`Platform: ${platformLabel}`, '', 'vm'),
         new ProjectItem(`Group: ${p.groupId}`, '', 'tag'),
         new ProjectItem(`Version: ${p.version}`, '', 'versions'),
         new ProjectItem(`Modules: ${p.modules.length}`, '', 'files'),

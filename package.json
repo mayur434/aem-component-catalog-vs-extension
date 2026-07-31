@@ -33,6 +33,7 @@
     "onCommand:aemComponentLibrary.doctor",
     "onCommand:aemComponentLibrary.rollback",
     "onCommand:aemComponentLibrary.exportSupportBundle",
+    "onCommand:aemComponentLibrary.audit",
     "onCommand:aemComponentLibrary.openDashboard",
     "onView:aemCL.actions",
     "onView:aemCL.projects",
@@ -136,6 +137,11 @@
         "command": "aemComponentLibrary.exportSupportBundle",
         "title": "AEM Component Catalog: (Advanced) Export Redacted Support Bundle",
         "icon": "$(export)"
+      },
+      {
+        "command": "aemComponentLibrary.audit",
+        "title": "AEM Component Audit: Generate Tech Audit Report (AEMaaCS & AMS)",
+        "icon": "$(checklist)"
       }
     ],
     "menus": {
@@ -191,6 +197,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^22.16.5",
     "@types/vscode": "^1.100.0",
     "@vitest/coverage-v8": "^3.2.4",
@@ -204,6 +211,8 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "adm-zip": "^0.6.0",
+    "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.10.1",
     "handlebars": "^4.7.8"
   },

@@ -13,11 +13,11 @@ describe('transactional generation', () => {
     fixture = createAemCloudFixture();
     const config = loadConfig(fixture.root);
     const initial = buildGenerationPlan(fixture.root, config);
-    expect(initial.items).toHaveLength(16);
+    expect(initial.items).toHaveLength(17);
     expect(initial.items.every((item) => item.status === 'create')).toBe(true);
 
     const firstResult = applyGenerationPlan(initial, { actor: 'test' });
-    expect(firstResult.created).toBe(16);
+    expect(firstResult.created).toBe(17);
     expect(firstResult.skipped).toBe(0);
     expect(fs.existsSync(path.join(fixture.root, '.aem-catalog-manifest.json'))).toBe(true);
 
@@ -75,8 +75,13 @@ describe('transactional generation', () => {
     expect(
       parsed.scripts.some((script) => script.includes('create path (sling:OrderedFolder) /content/dam/sample-site/catalog')),
     ).toBe(true);
+    // CatalogGeneratorService writes static JSON to DAM — rep:write + jcr:versionManagement.
     expect(
-      parsed.scripts.some((script) => script.includes('allow jcr:read on /content/dam/sample-site/catalog')),
+      parsed.scripts.some((script) => script.includes('allow jcr:read,rep:write,jcr:versionManagement on /content/dam/sample-site/catalog')),
+    ).toBe(true);
+    // Fallback write path for catalog JSON under /content/<appId>.
+    expect(
+      parsed.scripts.some((script) => script.includes('allow jcr:read,rep:write on /content/sample-site')),
     ).toBe(true);
     // Component usage: nightly Sling job + service, servlet reads it, RepoInit grants /content read.
     expect(
@@ -119,6 +124,26 @@ describe('transactional generation', () => {
     expect(servlet).toContain('ASSET_ROOT = "/content/dam/sample-site/catalog"');
     expect(servlet).toContain('damThumbnail');
     expect(servlet).toContain('usageService.pagesFor');
+    // Static catalog JSON: servlet reads pre-built JSON from DAM/content before /apps traversal.
+    expect(servlet).toContain('STATIC_CATALOG_DAM_PATH');
+    expect(servlet).toContain('STATIC_CATALOG_CONTENT_PATH');
+    expect(servlet).toContain('loadStaticCatalog');
+    expect(servlet).toContain('loadFromDam');
+    expect(servlet).toContain('loadFromContent');
+    expect(servlet).toContain('parseCatalogJson');
+    expect(servlet).toContain('import com.google.gson.JsonParser');
+    // CatalogGeneratorService: builds static JSON on activate + daily schedule.
+    const generator = plan.items.find((item) => item.relativePath.endsWith('CatalogGeneratorService.java'))!.content;
+    expect(generator).toContain('scheduler.expression=0 30 2 * * ?');
+    expect(generator).toContain('STARTUP_DELAY_MS = 10L * 60L * 1000L');
+    expect(generator).toContain('writeJsonToDam');
+    expect(generator).toContain('writeJsonToContent');
+    expect(generator).toContain('STATIC_CATALOG_DAM_PATH = "/content/dam/sample-site/catalog/components-catalog.json"');
+    expect(generator).toContain('STATIC_CATALOG_CONTENT_PATH = "/content/sample-site/catalog-data"');
+    expect(generator).toContain('scheduler.AT(fireAt)');
+    // Fail-silent: INFO logs, not ERROR, to avoid false alerts on ACL issues.
+    expect(generator).not.toContain('LOG.error');
+    expect(generator).toContain('LOG.info("[CatalogGenerator]');
     // Hidden/container/structural components are excluded from the catalog by default.
     expect(servlet).toContain('isStructural');
     expect(servlet).toContain('EXCLUDED_LEAF_NAMES.add("container")');

@@ -88,6 +88,8 @@ export interface CatalogRuntimeConfig {
   pageSize: number;
   /** Quartz cron for the nightly component-usage index rebuild (Sling scheduler). */
   usageCron: string;
+  /** Quartz cron for the catalog JSON generator (writes static JSON to DAM). */
+  generatorCron: string;
   /**
    * When true, the catalog listing only includes components with at least one usage on a
    * currently-published page - a not-yet-adopted or draft-only component stays hidden until

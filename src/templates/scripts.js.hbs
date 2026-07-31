@@ -16,6 +16,104 @@
     /* ------ helpers ------ */
     function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
+    /* ------ fuzzy search — Levenshtein distance + scoring ------ */
+    function levenshtein(a, b) {
+        if (a.length === 0) return b.length;
+        if (b.length === 0) return a.length;
+        var matrix = [];
+        for (var i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
+        for (i = 1; i <= b.length; i++) {
+            for (j = 1; j <= a.length; j++) {
+                var cost = b.charAt(i - 1) === a.charAt(j - 1) ? 0 : 1;
+                matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    function fuzzyScore(needle, haystack) {
+        if (!needle) return 100;
+        var n = needle.toLowerCase(), h = haystack.toLowerCase();
+        if (h === n) return 100;
+        if (h.indexOf(n) === 0) return 90;
+        if (h.indexOf(n) >= 0) return 80;
+        var words = h.split(/\s+/);
+        for (var i = 0; i < words.length; i++) { if (words[i].indexOf(n) === 0) return 75; }
+        var threshold = Math.floor(n.length * 0.4);
+        for (i = 0; i < words.length; i++) {
+            if (levenshtein(n, words[i].substring(0, n.length + 2)) <= threshold) return 60;
+        }
+        if (n.length >= 3 && levenshtein(n, h.substring(0, n.length + 2)) <= threshold) return 50;
+        return 0;
+    }
+
+    function highlightText(text, needle) {
+        if (!needle || needle.length < 2) return esc(text);
+        var idx = text.toLowerCase().indexOf(needle.toLowerCase());
+        if (idx < 0) return esc(text);
+        return esc(text.substring(0, idx)) + '<mark class="pcl-highlight">' + esc(text.substring(idx, idx + needle.length)) + '</mark>' + esc(text.substring(idx + needle.length));
+    }
+
+    /* ------ toast — brief notifications ------ */
+    function showToast(msg) {
+        var el = document.getElementById("pcl-toast");
+        if (!el) return;
+        el.textContent = msg;
+        el.classList.add("pcl-toast--visible");
+        clearTimeout(el._timer);
+        el._timer = setTimeout(function () { el.classList.remove("pcl-toast--visible"); }, 2000);
+    }
+
+    /* ------ URL state — deep-linkable filters ------ */
+    function readUrlState() {
+        var params = new URLSearchParams(window.location.search);
+        return { search: params.get("search") || "", category: params.get("category") || "", sort: params.get("sort") || "", favorites: params.get("favorites") === "1", searchScope: params.get("scope") || "all" };
+    }
+
+    function writeUrlState(updates) {
+        var url = new URL(window.location.href);
+        Object.keys(updates).forEach(function (key) {
+            var val = updates[key];
+            if (!val || val === "all" || val === false) { url.searchParams.delete(key); }
+            else if (val === true) { url.searchParams.set(key, "1"); }
+            else { url.searchParams.set(key, val); }
+        });
+        history.replaceState(null, "", url.toString());
+    }
+
+    /* ------ favorites — localStorage bookmarks ------ */
+    var FAVORITES_KEY = "pcl-favorites";
+    function getFavorites() { try { return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []; } catch (e) { return []; } }
+    function toggleFavorite(name) {
+        var favs = getFavorites();
+        var idx = favs.indexOf(name);
+        if (idx >= 0) { favs.splice(idx, 1); } else { favs.push(name); }
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+        return idx < 0;
+    }
+    function isFavorite(name) { return getFavorites().indexOf(name) >= 0; }
+
+    function bindFavorites() {
+        var cards = document.querySelectorAll(".pcl-card");
+        cards.forEach(function (card) {
+            var star = card.querySelector(".pcl-card__fav");
+            if (!star) return;
+            var name = card.getAttribute("data-name") || "";
+            if (isFavorite(name)) {
+                star.classList.add("pcl-card__fav--active");
+                star.setAttribute("aria-label", "Remove from favorites");
+            }
+            star.addEventListener("click", function (e) {
+                e.preventDefault(); e.stopPropagation();
+                var isNowFav = toggleFavorite(name);
+                star.classList.toggle("pcl-card__fav--active", isNowFav);
+                star.setAttribute("aria-label", isNowFav ? "Remove from favorites" : "Add to favorites");
+                showToast(isNowFav ? "Added to favorites" : "Removed from favorites");
+            });
+        });
+    }
+
     /* Strips a leading "<App Id> - " prefix (dash/space tolerant, any dash glyph) from group
        labels like "Pidilite Component Library - Content" -> "Content". Built from {{appId}} at
        runtime rather than embedded as template-generated regex source, which is fragile to escape. */
@@ -138,7 +236,11 @@
     function renderCard(comp, pagePath, category, sub) {
         var href = pagePath + ".html/" + encodeURIComponent(comp.name);
         var hasThumbnail = !!comp.thumbnailPath;
-        var html = '<a class="pcl-card" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-category="' + esc(category) + '" data-subcategory="' + esc(sub) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '" data-quality="' + esc(comp.qualityScore == null ? "" : comp.qualityScore) + '">';
+        var uc = comp.usageCount || 0;
+        var fieldNames = (comp.dialogFields || []).map(function (f) { return f.label || f.name || ""; }).join(", ");
+        var tagsList = (comp.tags || []).join(", ");
+        var html = '<a class="pcl-card' + (uc === 0 ? ' pcl-card--unused' : '') + '" href="' + href + '" data-title="' + esc(comp.title) + '" data-desc="' + esc(comp.description) + '" data-group="' + esc(comp.group) + '" data-category="' + esc(category) + '" data-subcategory="' + esc(sub) + '" data-owner="' + esc(comp.owner) + '" data-status="' + esc(comp.status) + '" data-quality="' + esc(comp.qualityScore == null ? "" : comp.qualityScore) + '" data-name="' + esc(comp.name) + '" data-usage="' + uc + '" data-fields="' + esc(fieldNames) + '" data-tags="' + esc(tagsList) + '">';
+        html += '<button type="button" class="pcl-card__fav" aria-label="Add to favorites"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>';
         html += '<div class="pcl-card__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>';
         if (hasThumbnail) {
             html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" loading="lazy"/></div>';
@@ -177,12 +279,17 @@
         if (catEl) catEl.textContent = Object.keys(categories).length;
 
         toolbar.style.display = "";
-        // Top-level filter pills = Category (website).
-        var pillsHtml = '<button class="pcl-filter-pill active" data-filter="">All <span class="pcl-filter-pill__count">' + data.total + "</span></button>";
+        var totalEl2 = document.getElementById("pcl-results-total");
+        if (totalEl2) totalEl2.textContent = data.total;
+
+        var urlState = readUrlState();
+        var activeCategory = urlState.category || "";
+        var pillsHtml = '<button class="pcl-filter-pill' + (!activeCategory ? ' active' : '') + '" data-filter="">All <span class="pcl-filter-pill__count">' + data.total + "</span></button>";
+        pillsHtml += '<button class="pcl-filter-pill pcl-pill--fav' + (urlState.favorites ? ' active' : '') + '" data-filter="__favorites__">★ Favorites</button>';
         var catNames = Object.keys(categories).sort();
         for (var ci = 0; ci < catNames.length; ci++) {
             var cn = catNames[ci];
-            pillsHtml += '<button class="pcl-filter-pill" data-filter="' + esc(cn) + '">' +
+            pillsHtml += '<button class="pcl-filter-pill' + (activeCategory === cn ? ' active' : '') + '" data-filter="' + esc(cn) + '">' +
                 esc(cn) + ' <span class="pcl-filter-pill__count">' + categories[cn] + "</span></button>";
         }
         pillsContainer.innerHTML = pillsHtml;
@@ -195,14 +302,38 @@
         renderSections(data, getSortMode());
 
         var searchInput = document.querySelector(".pcl-search__input");
+        var scopeSelect = document.getElementById("pcl-search-scope");
+        if (urlState.search && searchInput) {
+            searchInput.value = urlState.search;
+            _searchState.needle = urlState.search;
+        }
+        if (urlState.searchScope && scopeSelect) {
+            scopeSelect.value = urlState.searchScope;
+            _searchState.scope = urlState.searchScope;
+        }
+        if (urlState.favorites) _searchState.showFavOnly = true;
+
         if (searchInput) {
             searchInput.addEventListener("input", function () {
-                applyFilters(searchInput.value, getActiveFilter(), getFacetState());
+                _searchState.needle = this.value.trim();
+                writeUrlState({ search: _searchState.needle });
+                applyFilters(this.value, getActiveFilter(), getFacetState());
+            });
+        }
+        if (scopeSelect) {
+            scopeSelect.addEventListener("change", function () {
+                _searchState.scope = this.value;
+                writeUrlState({ scope: _searchState.scope });
+                applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
             });
         }
         bindPills(searchInput);
         bindFacets(searchInput);
         bindSort(searchInput, data);
+        bindFavorites();
+
+        var hasActiveFilter = urlState.search || (urlState.searchScope && urlState.searchScope !== "all") || urlState.favorites || urlState.category;
+        if (hasActiveFilter) applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
     }
 
     /* ------ sorting (default: usage high -> low) ------ */
@@ -381,40 +512,62 @@
         var pills = document.querySelectorAll(".pcl-filter-pill");
         pills.forEach(function (pill) {
             pill.addEventListener("click", function () {
-                pills.forEach(function (p) { p.classList.remove("active"); });
+                var filter = pill.getAttribute("data-filter") || "";
+                if (filter === "__favorites__") {
+                    pill.classList.toggle("active");
+                    _searchState.showFavOnly = pill.classList.contains("active");
+                    writeUrlState({ favorites: _searchState.showFavOnly });
+                    applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
+                    return;
+                }
+                pills.forEach(function (p) { if (!p.classList.contains("pcl-pill--fav")) p.classList.remove("active"); });
                 pill.classList.add("active");
+                writeUrlState({ category: filter });
                 var query = searchInput ? searchInput.value : "";
-                applyFilters(query, pill.getAttribute("data-filter") || "", getFacetState());
+                applyFilters(query, filter, getFacetState());
             });
         });
     }
 
+    var _searchState = { needle: "", scope: "all", showFavOnly: false };
+
     function applyFilters(query, category, facets) {
-        query = (query || "").toLowerCase().trim();
+        query = (query || "").trim();
         facets = facets || {};
+        var scope = _searchState.scope;
+        var favOnly = _searchState.showFavOnly;
         var cards = document.querySelectorAll(".pcl-card");
         var subSections = document.querySelectorAll(".pcl-subcategory-section");
         var sections = document.querySelectorAll(".pcl-category-section");
         var visibleCount = 0;
         cards.forEach(function (card) {
-            var title = (card.getAttribute("data-title") || "").toLowerCase();
-            var desc = (card.getAttribute("data-desc") || "").toLowerCase();
-            var grp = (card.getAttribute("data-group") || "").toLowerCase();
             var cat = card.getAttribute("data-category") || "";
-            var sub = (card.getAttribute("data-subcategory") || "").toLowerCase();
-            var owner = (card.getAttribute("data-owner") || "").toLowerCase();
-            var status = (card.getAttribute("data-status") || "").toLowerCase();
-            var quality = parseInt(card.getAttribute("data-quality") || "0", 10);
-            var matchSearch = !query || title.indexOf(query) !== -1 || desc.indexOf(query) !== -1 ||
-                grp.indexOf(query) !== -1 || cat.toLowerCase().indexOf(query) !== -1 || sub.indexOf(query) !== -1 ||
-                owner.indexOf(query) !== -1 || status.indexOf(query) !== -1;
+            var fieldsVal = (card.getAttribute("data-fields") || "").trim();
+            var hay;
+            if (scope === "fields") {
+                if (!fieldsVal) { card.style.display = "none"; return; }
+                hay = fieldsVal;
+            } else {
+                hay = (card.getAttribute("data-title") || "") + " " + (card.getAttribute("data-desc") || "") + " " +
+                    (card.getAttribute("data-group") || "") + " " + cat + " " + (card.getAttribute("data-subcategory") || "") + " " +
+                    fieldsVal + " " + (card.getAttribute("data-tags") || "") + " " + (card.getAttribute("data-owner") || "");
+            }
+            var score = fuzzyScore(query, hay);
             var matchCategory = !category || cat === category;
+            var matchFav = !favOnly || isFavorite(card.getAttribute("data-name") || "");
             var matchStatus = !facets.status || (card.getAttribute("data-status") || "") === facets.status;
             var matchOwner = !facets.owner || (card.getAttribute("data-owner") || "") === facets.owner;
-            var matchQuality = !facets.quality ||
-                (facets.quality === "high" ? quality >= 70 : quality < 70);
-            var show = matchSearch && matchCategory && matchStatus && matchOwner && matchQuality;
+            var quality = parseInt(card.getAttribute("data-quality") || "0", 10);
+            var matchQuality = !facets.quality || (facets.quality === "high" ? quality >= 70 : quality < 70);
+            var show = score > 0 && matchCategory && matchFav && matchStatus && matchOwner && matchQuality;
             card.style.display = show ? "" : "none";
+            card.setAttribute("data-score", score);
+            var titleEl = card.querySelector(".pcl-card__title");
+            if (titleEl) {
+                var origTitle = card.getAttribute("data-title") || "";
+                if (query && query.length >= 2 && show) { titleEl.innerHTML = highlightText(origTitle, query); }
+                else { titleEl.textContent = origTitle; }
+            }
             if (show) visibleCount++;
         });
         subSections.forEach(function (sub) {
@@ -427,6 +580,11 @@
         });
         var empty = document.querySelector(".pcl-empty");
         if (empty) empty.style.display = visibleCount === 0 ? "" : "none";
+        var resultsBar = document.getElementById("pcl-results-bar");
+        var filteredEl = document.getElementById("pcl-filtered-count");
+        var isFiltered = query || scope !== "all" || favOnly || category;
+        if (resultsBar) resultsBar.style.display = isFiltered ? "" : "none";
+        if (filteredEl && isFiltered) filteredEl.textContent = visibleCount;
     }
 
     /* ====================================================
@@ -454,6 +612,14 @@
         html += '<h1 class="pcl-detail__title">' + esc(comp.title) + "</h1>";
         html += '<p class="pcl-detail__desc">' + esc(comp.description || "A shared component from the " + groupLabel(comp.group) + " group.") + "</p>";
         html += "</div>";
+
+        if (comp.deprecated) {
+            html += '<div class="pcl-deprecation-banner" role="alert">';
+            html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+            html += '<div class="pcl-deprecation-banner__text"><strong>Deprecated</strong>';
+            html += '<span>' + esc(comp.deprecationNote || "This component is deprecated and should not be used in new pages.") + '</span>';
+            html += '</div></div>';
+        }
 
         html += carouselSection(comp);
 
@@ -483,6 +649,19 @@
         html += usageSection(comp);
 
         html += relationshipsSection(comp, pagePath);
+
+        if (comp.superTypeChain && comp.superTypeChain.length > 0) {
+            html += '<div class="pcl-dep-chain"><h3 class="pcl-dep-chain__title">Inheritance Chain</h3>';
+            html += '<div class="pcl-dep-chain__flow">';
+            for (var ci2 = 0; ci2 < comp.superTypeChain.length; ci2++) {
+                var isLast = ci2 === comp.superTypeChain.length - 1;
+                html += '<div class="pcl-dep-chain__node' + (isLast ? ' pcl-dep-chain__node--current' : '') + '"><code>' + esc(comp.superTypeChain[ci2]) + '</code></div>';
+                if (!isLast) {
+                    html += '<svg class="pcl-dep-chain__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+                }
+            }
+            html += '</div></div>';
+        }
 
         {{#if features.codeSnippets}}
         html += '<div class="pcl-code-section"><div class="pcl-code-section__header"><h3 class="pcl-code-section__title">HTL Usage</h3><button class="pcl-code-section__copy">Copy</button></div>';
@@ -786,6 +965,71 @@
     {{/if}}
 
     /* ====================================================
+       KEYBOARD SHORTCUTS — global navigation
+       ==================================================== */
+    function bindKeyboardShortcuts() {
+        var input = document.querySelector(".pcl-search__input");
+        var helpModal = document.getElementById("pcl-shortcuts-modal");
+        var focusedIdx = -1;
+
+        function getVisibleCards() {
+            var arr = [];
+            document.querySelectorAll(".pcl-card").forEach(function (c) { if (c.style.display !== "none") arr.push(c); });
+            return arr;
+        }
+
+        function setCardFocus(visible, idx) {
+            visible.forEach(function (c) { c.classList.remove("pcl-card--focused"); });
+            if (idx >= 0 && idx < visible.length) {
+                visible[idx].classList.add("pcl-card--focused");
+                visible[idx].scrollIntoView({ block: "nearest", behavior: "smooth" });
+            }
+        }
+
+        document.addEventListener("keydown", function (e) {
+            var tag = e.target.tagName;
+            var isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable;
+            var anyModalOpen = document.querySelector(".pcl-lightbox--open, .pcl-usage-modal--open");
+
+            if (e.key === "Escape") {
+                if (helpModal && helpModal.classList.contains("pcl-shortcuts--open")) {
+                    helpModal.classList.remove("pcl-shortcuts--open"); e.preventDefault(); return;
+                }
+                if (isInput && input) {
+                    input.value = ""; input.dispatchEvent(new Event("input")); input.blur();
+                    focusedIdx = -1; setCardFocus(getVisibleCards(), -1); e.preventDefault(); return;
+                }
+            }
+            if (anyModalOpen) return;
+            if (!isInput) {
+                if (e.key === "/") { e.preventDefault(); if (input) input.focus(); return; }
+                if (e.key === "?") { e.preventDefault(); if (helpModal) helpModal.classList.toggle("pcl-shortcuts--open"); return; }
+                if (e.key === "f" && !e.ctrlKey && !e.metaKey) {
+                    var favPill = document.querySelector(".pcl-pill--fav");
+                    if (favPill) { favPill.click(); e.preventDefault(); }
+                    return;
+                }
+            }
+            if (input && document.activeElement === input) {
+                var visible = getVisibleCards();
+                if (e.key === "ArrowDown") { e.preventDefault(); focusedIdx = Math.min(focusedIdx + 1, visible.length - 1); setCardFocus(visible, focusedIdx); }
+                else if (e.key === "ArrowUp") { e.preventDefault(); focusedIdx = Math.max(focusedIdx - 1, 0); setCardFocus(visible, focusedIdx); }
+                else if (e.key === "Enter" && focusedIdx >= 0 && focusedIdx < visible.length) { e.preventDefault(); visible[focusedIdx].click(); }
+            }
+        });
+    }
+
+    function bindShortcutsModal() {
+        var modal = document.getElementById("pcl-shortcuts-modal");
+        if (!modal) return;
+        var closeBtn = modal.querySelector(".pcl-shortcuts-modal__close");
+        var backdrop = modal.querySelector(".pcl-shortcuts-modal__backdrop");
+        function closeModal() { modal.classList.remove("pcl-shortcuts--open"); }
+        if (closeBtn) closeBtn.addEventListener("click", closeModal);
+        if (backdrop) backdrop.addEventListener("click", closeModal);
+    }
+
+    /* ====================================================
        INIT
        ==================================================== */
     /* ------ sticky brand bar: reveal on scroll ------ */
@@ -802,6 +1046,8 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         bindTopbar();
+        bindKeyboardShortcuts();
+        bindShortcutsModal();
         var pagePath = getPagePath();
         if (!pagePath) return;
 

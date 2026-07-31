@@ -1,7 +1,9 @@
-/** Detect AEM as a Cloud Service Maven reactor projects. */
+/** Detect AEM Maven reactor projects (AEMaaCS and AEM AMS). */
 import * as fs from 'fs';
 import * as path from 'path';
 import { XMLParser } from 'fast-xml-parser';
+
+export type AemPlatform = 'aemaacs' | 'ams';
 
 export interface ProjectInfo {
   root: string;
@@ -10,7 +12,7 @@ export interface ProjectInfo {
   version: string;
   javaPackage: string;
   modules: string[];
-  platform: 'aemaacs';
+  platform: AemPlatform;
   javaVersion: string;
 }
 
@@ -27,7 +29,7 @@ export function detectProject(workspaceRoot: string): ProjectInfo | null {
   return detectAllProjects(workspaceRoot)[0] ?? null;
 }
 
-/** Find AEMaaCS reactors at the workspace root or one directory below it. */
+/** Find AEM reactors (AEMaaCS or AMS) at the workspace root or one directory below it. */
 export function detectAllProjects(workspaceRoot: string): ProjectInfo[] {
   const candidates = new Set<string>([path.resolve(workspaceRoot)]);
   try {
@@ -41,9 +43,13 @@ export function detectAllProjects(workspaceRoot: string): ProjectInfo[] {
   }
 
   return [...candidates]
-    .map((root) => parseAemCloudProject(root))
+    .map((root) => parseAemProject(root))
     .filter((project): project is ProjectInfo => project !== null)
     .sort((a, b) => a.root.localeCompare(b.root));
+}
+
+export function parseAemProject(projectRoot: string): ProjectInfo | null {
+  return parseAemCloudProject(projectRoot) ?? parseAmsProject(projectRoot);
 }
 
 export function parseAemCloudProject(projectRoot: string): ProjectInfo | null {
@@ -83,6 +89,43 @@ export function parseAemCloudProject(projectRoot: string): ProjectInfo | null {
   }
 }
 
+export function parseAmsProject(projectRoot: string): ProjectInfo | null {
+  const pomFile = path.join(projectRoot, 'pom.xml');
+  if (!fs.existsSync(pomFile)) {
+    return null;
+  }
+
+  try {
+    const xml = fs.readFileSync(pomFile, 'utf-8');
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const project = parser.parse(xml)?.project as PomProject | undefined;
+    if (!project || (project.packaging ?? 'jar') !== 'pom') {
+      return null;
+    }
+
+    const moduleValue = project.modules?.module;
+    const modules = moduleValue ? (Array.isArray(moduleValue) ? moduleValue : [moduleValue]) : [];
+    if (modules.length === 0 || !isAmsReactor(projectRoot, xml, modules)) {
+      return null;
+    }
+
+    const artifactId = String(project.artifactId ?? '');
+    const groupId = String(project.groupId ?? project.parent?.groupId ?? '');
+    return {
+      root: projectRoot,
+      artifactId,
+      groupId,
+      version: String(project.version ?? project.parent?.version ?? ''),
+      javaPackage: detectJavaPackage(projectRoot, artifactId, groupId),
+      modules: modules.map(String),
+      platform: 'ams',
+      javaVersion: detectJavaVersion(xml),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function isAemCloudReactor(projectRoot: string, pomXml: string, modules: string[]): boolean {
   const hasCloudApi = pomXml.includes('aem-sdk-api') || pomXml.includes('aemanalyser-maven-plugin');
   const hasCloudStructure =
@@ -94,6 +137,19 @@ function isAemCloudReactor(projectRoot: string, pomXml: string, modules: string[
       fs.existsSync(path.join(projectRoot, 'dispatcher.cloud')));
   const explicitlyLegacy = pomXml.includes('uber-jar') && !hasCloudApi;
   return !explicitlyLegacy && (hasCloudApi || hasCloudStructure);
+}
+
+function isAmsReactor(_projectRoot: string, pomXml: string, modules: string[]): boolean {
+  const hasUberJar = pomXml.includes('uber-jar');
+  const hasAemDependency =
+    hasUberJar ||
+    pomXml.includes('cq-quickstart-product-dependencies') ||
+    pomXml.includes('com.adobe.aem');
+  const hasCoreModule =
+    modules.some((m) => m === 'core' || m === 'bundle' || m.endsWith('.core') || m.endsWith('.bundle'));
+  const hasContentModule =
+    modules.some((m) => m === 'ui.apps' || m === 'content' || m.endsWith('.ui.apps') || m.endsWith('.content'));
+  return hasAemDependency && hasCoreModule && hasContentModule;
 }
 
 function detectJavaVersion(pomXml: string): string {

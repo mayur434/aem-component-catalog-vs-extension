@@ -208,6 +208,9 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
   if (!config.catalog.usageCron || !/^[-0-9*?/,\s]+$/.test(config.catalog.usageCron)) {
     errors.push('catalog.usageCron must be a valid quartz cron expression');
   }
+  if (!config.catalog.generatorCron || !/^[-0-9*?/,\s]+$/.test(config.catalog.generatorCron)) {
+    errors.push('catalog.generatorCron must be a valid quartz cron expression');
+  }
   // AEMaaCS rejects/ignores custom indexes that do not follow its naming convention:
   // a 2-5 char vendor prefix, a dot, the index name, then a "-custom-<N>" revision suffix.
   // Enforced here so a non-compliant name can never reach a Cloud Manager deployment.

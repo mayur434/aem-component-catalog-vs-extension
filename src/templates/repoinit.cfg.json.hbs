@@ -3,7 +3,7 @@
         "create service user {{serviceUserName}} with forced path system/cq:services/{{appId}}",
         "create path (sling:OrderedFolder) /content",
         "create path (sling:OrderedFolder) {{assetRoot}}",
-        "set principal ACL for {{serviceUserName}}\n    allow jcr:read on /apps\n    allow jcr:read on {{assetRoot}}\n    allow jcr:read on /content\nend",
+        "set principal ACL for {{serviceUserName}}\n    allow jcr:read on /apps\n    allow jcr:read,rep:write,jcr:versionManagement on {{assetRoot}}\n    allow jcr:read,rep:write on /content/{{appId}}\n    allow jcr:read on /content\nend",
         "create path (sling:Folder) /conf",
         "create path (sling:Folder) /conf/{{appId}}",
         "create path (nt:unstructured) /conf/{{appId}}/settings",

@@ -12,6 +12,7 @@ import { rollbackCommand } from './commands/rollback';
 import { supportBundleCommand } from './commands/support';
 import { ActionsProvider, ProjectsProvider, ComponentsProvider } from './sidebar/treeProviders';
 import { openDashboard } from './webview/dashboard';
+import { openAuditPanel } from './webview/auditPanel';
 
 export function activate(context: vscode.ExtensionContext): void {
   // Sidebar tree providers
@@ -59,6 +60,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('aemComponentLibrary.exportSupportBundle', (projectRoot?: string) =>
       supportBundleCommand(projectRoot),
+    ),
+    vscode.commands.registerCommand('aemComponentLibrary.audit', () =>
+      openAuditPanel(context),
     ),
     vscode.commands.registerCommand('aemComponentLibrary.refreshSidebar', refreshAll),
     vscode.commands.registerCommand('aemComponentLibrary.openDashboard', () =>

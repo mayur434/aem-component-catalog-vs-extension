@@ -103,6 +103,8 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       pageSize: 250,
       // Nightly at 02:00 — rebuild the in-memory "which pages use this component" index.
       usageCron: '0 0 2 * * ?',
+      // Nightly at 02:30 — regenerate the static catalog JSON in DAM (after usage index).
+      generatorCron: '0 30 2 * * ?',
       // A component library's core purpose is discovery, so components stay visible even
       // before anyone has used them yet — the catalog would otherwise hide its own newest
       // additions until someone happens to publish a page with them. Projects that want a

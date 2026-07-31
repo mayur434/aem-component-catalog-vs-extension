@@ -1,29 +1,42 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { detectAllProjects, type ProjectInfo } from '../scanner/projectDetector';
+import { detectAllProjects, type ProjectInfo, type AemPlatform } from '../scanner/projectDetector';
 
 export async function selectAemCloudProject(
   requestedRoot?: string,
   placeHolder = 'Select the AEM as a Cloud Service project',
 ): Promise<ProjectInfo | undefined> {
-  const projects = discoverWorkspaceProjects();
+  return selectAemProject(requestedRoot, placeHolder, 'aemaacs');
+}
+
+export async function selectAemProject(
+  requestedRoot?: string,
+  placeHolder = 'Select the AEM project',
+  platformFilter?: AemPlatform,
+): Promise<ProjectInfo | undefined> {
+  let projects = discoverWorkspaceProjects();
+  if (platformFilter) {
+    projects = projects.filter((p) => p.platform === platformFilter);
+  }
   if (!projects.length) {
-    vscode.window.showErrorMessage('No AEM as a Cloud Service reactor was found in the open workspace.');
+    const label = platformFilter === 'aemaacs' ? 'AEMaaCS' : platformFilter === 'ams' ? 'AEM AMS' : 'AEM';
+    vscode.window.showErrorMessage(`No ${label} reactor was found in the open workspace.`);
     return undefined;
   }
   if (requestedRoot) {
     const resolved = path.resolve(requestedRoot);
     const matched = projects.find((project) => path.resolve(project.root) === resolved);
     if (!matched) {
-      vscode.window.showErrorMessage('The requested project is not a discovered AEMaaCS workspace project.');
+      vscode.window.showErrorMessage('The requested project is not a discovered AEM workspace project.');
     }
     return matched;
   }
   if (projects.length === 1) return projects[0];
+  const platformLabel = (p: ProjectInfo) => p.platform === 'aemaacs' ? 'AEMaaCS' : 'AEM AMS';
   const picked = await vscode.window.showQuickPick(
     projects.map((project) => ({
       label: project.artifactId,
-      description: `AEMaaCS · ${project.groupId}:${project.version}`,
+      description: `${platformLabel(project)} · ${project.groupId}:${project.version}`,
       detail: project.root,
       project,
     })),
