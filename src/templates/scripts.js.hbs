@@ -284,13 +284,13 @@
 
         var urlState = readUrlState();
         var activeCategory = urlState.category || "";
-        var pillsHtml = '<button class="pcl-filter-pill' + (!activeCategory ? ' active' : '') + '" data-filter="">All <span class="pcl-filter-pill__count">' + data.total + "</span></button>";
-        pillsHtml += '<button class="pcl-filter-pill pcl-pill--fav' + (urlState.favorites ? ' active' : '') + '" data-filter="__favorites__">★ Favorites</button>';
+        var pillsHtml = '<button class="pcl-pill' + (!activeCategory ? ' pcl-pill--active' : '') + '" data-filter="">All <span class="pcl-pill__count">' + data.total + "</span></button>";
+        pillsHtml += '<button class="pcl-pill pcl-pill--fav' + (urlState.favorites ? ' pcl-pill--active' : '') + '" data-filter="__favorites__">★ Favorites</button>';
         var catNames = Object.keys(categories).sort();
         for (var ci = 0; ci < catNames.length; ci++) {
             var cn = catNames[ci];
-            pillsHtml += '<button class="pcl-filter-pill' + (activeCategory === cn ? ' active' : '') + '" data-filter="' + esc(cn) + '">' +
-                esc(cn) + ' <span class="pcl-filter-pill__count">' + categories[cn] + "</span></button>";
+            pillsHtml += '<button class="pcl-pill' + (activeCategory === cn ? ' pcl-pill--active' : '') + '" data-filter="' + esc(cn) + '">' +
+                esc(cn) + ' <span class="pcl-pill__count">' + categories[cn] + "</span></button>";
         }
         pillsContainer.innerHTML = pillsHtml;
 
@@ -341,6 +341,11 @@
     function getSortMode() { var el = document.getElementById("pcl-sort"); return el ? el.value : "usage"; }
     function cardCompare(mode) {
         return function (a, b) {
+            if (mode === "updated") {
+                var ta = a.lastModified || a.formattedUpdatedAt || "";
+                var tb = b.lastModified || b.formattedUpdatedAt || "";
+                if (ta !== tb) return ta > tb ? -1 : 1;
+            }
             if (mode === "usage") { var d = usageOf(b) - usageOf(a); if (d) return d; }
             return String(a.title || "").localeCompare(String(b.title || ""));
         };
@@ -504,24 +509,24 @@
     {{/if}}
 
     function getActiveFilter() {
-        var active = document.querySelector(".pcl-filter-pill.active");
+        var active = document.querySelector(".pcl-pill.pcl-pill--active:not(.pcl-pill--fav)");
         return active ? (active.getAttribute("data-filter") || "") : "";
     }
 
     function bindPills(searchInput) {
-        var pills = document.querySelectorAll(".pcl-filter-pill");
+        var pills = document.querySelectorAll(".pcl-pill");
         pills.forEach(function (pill) {
             pill.addEventListener("click", function () {
                 var filter = pill.getAttribute("data-filter") || "";
                 if (filter === "__favorites__") {
-                    pill.classList.toggle("active");
-                    _searchState.showFavOnly = pill.classList.contains("active");
+                    pill.classList.toggle("pcl-pill--active");
+                    _searchState.showFavOnly = pill.classList.contains("pcl-pill--active");
                     writeUrlState({ favorites: _searchState.showFavOnly });
                     applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
                     return;
                 }
-                pills.forEach(function (p) { if (!p.classList.contains("pcl-pill--fav")) p.classList.remove("active"); });
-                pill.classList.add("active");
+                pills.forEach(function (p) { if (!p.classList.contains("pcl-pill--fav")) p.classList.remove("pcl-pill--active"); });
+                pill.classList.add("pcl-pill--active");
                 writeUrlState({ category: filter });
                 var query = searchInput ? searchInput.value : "";
                 applyFilters(query, filter, getFacetState());
@@ -631,6 +636,8 @@
         html += infoRow("Authoring options", esc((comp.dialogFields || []).length));
         html += infoRow("Example images", esc((comp.layouts || []).length));
         html += infoRow("Resource type", "<code>" + esc(comp.resourceType) + "</code>");
+        if (comp.formattedUpdatedAt) html += infoRow("Last updated", esc(comp.formattedUpdatedAt));
+        if (comp.formattedCreatedAt) html += infoRow("Created", esc(comp.formattedCreatedAt));
         html += "</div>";
         html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Authoring options</h3>';
         if (comp.dialogFields && comp.dialogFields.length > 0) {
@@ -942,13 +949,13 @@
             lbImg.src = images[idx].src;
             lbImg.alt = images[idx].alt;
             lbCaption.textContent = images[idx].label || images[idx].alt;
-            lightbox.classList.add("active");
+            lightbox.classList.add("pcl-lightbox--open");
             lightbox.setAttribute("aria-hidden", "false");
             document.body.style.overflow = "hidden";
             lbPrev.style.display = current > 0 ? "" : "none";
             lbNext.style.display = current < images.length - 1 ? "" : "none";
         }
-        function close() { lightbox.classList.remove("active"); lightbox.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; }
+        function close() { lightbox.classList.remove("pcl-lightbox--open"); lightbox.setAttribute("aria-hidden", "true"); document.body.style.overflow = ""; }
 
         items.forEach(function (item, idx) { item.addEventListener("click", function () { open(idx); }); });
         lbClose.addEventListener("click", close);
@@ -956,7 +963,7 @@
         lbPrev.addEventListener("click", function () { open(current - 1); });
         lbNext.addEventListener("click", function () { open(current + 1); });
         document.addEventListener("keydown", function (e) {
-            if (!lightbox.classList.contains("active")) return;
+            if (!lightbox.classList.contains("pcl-lightbox--open")) return;
             if (e.key === "Escape") close();
             if (e.key === "ArrowLeft") open(current - 1);
             if (e.key === "ArrowRight") open(current + 1);
@@ -1037,8 +1044,7 @@
         var bar = document.getElementById("pcl-topbar");
         if (!bar) return;
         var toggle = function () {
-            if (window.pageYOffset > 120) bar.classList.add("pcl-topbar--show");
-            else bar.classList.remove("pcl-topbar--show");
+            bar.classList.toggle("pcl-topbar--visible", window.scrollY > 200);
         };
         window.addEventListener("scroll", toggle, { passive: true });
         toggle();

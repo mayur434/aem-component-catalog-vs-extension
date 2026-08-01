@@ -193,7 +193,7 @@
     transition: transform .25s ease;
     z-index: 300;
 }
-.pcl-topbar--show { transform: translateY(0); }
+.pcl-topbar--visible { transform: translateY(0); }
 .pcl-topbar__title {
     max-width: var(--pcl-max-width);
     margin: 0 auto;
@@ -296,12 +296,12 @@
     background-color: var(--pcl-surface);
     box-shadow: 0 0 0 3px rgba(3,67,142,.1);
 }
-.pcl-filter-pills {
+.pcl-pills {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
 }
-.pcl-filter-pill {
+.pcl-pill {
     padding: 8px 18px;
     border: 1px solid var(--pcl-border);
     border-radius: 100px;
@@ -314,16 +314,16 @@
     transition: var(--pcl-transition);
     white-space: nowrap;
 }
-.pcl-filter-pill:hover {
+.pcl-pill:hover {
     border-color: var(--pcl-primary);
     color: var(--pcl-primary);
 }
-.pcl-filter-pill.active {
+.pcl-pill--active {
     background: var(--pcl-primary);
     border-color: var(--pcl-primary);
     color: #fff;
 }
-.pcl-filter-pill__count {
+.pcl-pill__count {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -335,7 +335,7 @@
     font-size: 11px;
     margin-left: 6px;
 }
-.pcl-filter-pill.active .pcl-filter-pill__count {
+.pcl-pill--active .pcl-pill__count {
     background: rgba(255,255,255,.2);
 }
 
@@ -890,7 +890,7 @@
     .pcl-toolbar__inner { max-width: 100%; min-width: 0; }
     .pcl-sort { width: 100%; justify-content: space-between; }
     .pcl-sort__select { flex: 1; min-width: 0; }
-    .pcl-filter-pills {
+    .pcl-pills {
         flex-wrap: nowrap;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
@@ -900,8 +900,8 @@
         width: 100%;
         max-width: 100%;
     }
-    .pcl-filter-pills::-webkit-scrollbar { display: none; }
-    .pcl-filter-pill { flex: 0 0 auto; }
+    .pcl-pills::-webkit-scrollbar { display: none; }
+    .pcl-pill { flex: 0 0 auto; }
 
     .pcl-content, .pcl-detail {
         padding: 20px 16px;
@@ -1103,7 +1103,7 @@
     padding: 40px;
     background: rgba(0,13,35,.92);
 }
-.pcl-lightbox.active {
+.pcl-lightbox--open {
     display: flex;
 }
 .pcl-lightbox__backdrop {

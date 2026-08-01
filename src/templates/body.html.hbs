@@ -63,11 +63,12 @@
             <div class="pcl-sort">
                 <label class="pcl-sort__label" for="pcl-sort">Sort</label>
                 <select class="pcl-sort__select" id="pcl-sort" aria-label="Sort components">
-                    <option value="usage" selected>Most used</option>
+                    <option value="updated" selected>Latest updated</option>
+                    <option value="usage">Most used</option>
                     <option value="name">Name (A–Z)</option>
                 </select>
             </div>
-            <div class="pcl-filter-pills" id="pcl-filter-pills"></div>
+            <div class="pcl-pills" id="pcl-filter-pills"></div>
         </div>
         <div class="pcl-facets" id="pcl-facets"></div>
         {{#if features.qualityScore}}
