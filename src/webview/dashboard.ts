@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
+import { projectId, escapeHtml } from '../utils/webviewHelpers';
 import { configExists, loadConfig } from '../config/loader';
 import { runDoctor, type DoctorFinding } from '../core/doctor';
 import { getDefaults } from '../config/defaults';
@@ -48,7 +49,7 @@ export function openDashboard(context: vscode.ExtensionContext, onRefresh?: () =
     vscode.ViewColumn.One,
     {
       enableScripts: true,
-      retainContextWhenHidden: false,
+      retainContextWhenHidden: true,
       localResourceRoots: [resources],
     },
   );
@@ -95,18 +96,19 @@ export function openDashboard(context: vscode.ExtensionContext, onRefresh?: () =
 function dashboardData(): DashboardProject[] {
   return discoverWorkspaceProjects().map((info) => {
     const configured = configExists(info.root);
-    let scan = scanComponents(info.root, getDefaults(info.artifactId));
+    const config = (() => { try { return configured ? loadConfig(info.root) : getDefaults(info.artifactId); } catch { return getDefaults(info.artifactId); } })();
+    let scan: ScanResult;
     let findings: DoctorFinding[] = [];
     let errors = 0;
     let warnings = 0;
     try {
-      const config = configured ? loadConfig(info.root) : getDefaults(info.artifactId);
       scan = scanComponents(info.root, config);
       const report = runDoctor(info.root, { config: configured ? config : undefined });
       findings = report.findings.slice(0, 8);
       errors = report.summary.errors;
       warnings = report.summary.warnings;
     } catch (error) {
+      scan = scanComponents(info.root, getDefaults(info.artifactId));
       findings = [
         {
           ruleId: 'catalog.config',
@@ -225,7 +227,7 @@ function projectCard(project: DashboardProject): string {
             <ul class="findings">${findingRows}</ul>
           </section>
           <section>
-            <h3>Component detail <span>${project.scan.total} total</span></h3>
+            <h3>Component detail <span>${project.scan.total > 100 ? `showing 100 of ${project.scan.total}` : `${project.scan.total} total`}</span></h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>Resource type</th><th>Owner</th><th>Status</th><th>Quality</th></tr></thead>
@@ -244,24 +246,11 @@ function metric(label: string, value: string | number): string {
 }
 
 function emptyState(): string {
-  return `<section class="empty"><h2>No AEMaaCS project found</h2><p>Open a current AEM Project Archetype workspace containing core, ui.apps, ui.config, all, and Cloud SDK markers.</p></section>`;
-}
-
-function projectId(root: string): string {
-  return crypto.createHash('sha256').update(root).digest('hex').slice(0, 16);
+  return `<section class="empty" role="alert"><h2>No AEM project found</h2><p>Open a workspace containing an AEMaaCS or AMS project with core, ui.apps, and ui.config modules.</p></section>`;
 }
 
 function scoreClass(score: number): string {
   return score >= 90 ? 'good' : score >= 70 ? 'warn' : 'bad';
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function isDashboardMessage(value: unknown): value is { action: DashboardAction; projectId: string } {

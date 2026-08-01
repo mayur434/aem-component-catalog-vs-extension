@@ -12,6 +12,7 @@ import { detectAllProjects, type ProjectInfo } from '../scanner/projectDetector'
 import { runAudit } from '../audit/auditEngine';
 import { generateExcelReport } from '../audit/excelReporter';
 import type { AuditResult } from '../audit/types';
+import { projectId, dateStamp } from '../utils/webviewHelpers';
 
 let currentPanel: vscode.WebviewPanel | undefined;
 let lastAuditResult: AuditResult | undefined;
@@ -171,7 +172,7 @@ async function handleExportExcel(panel: vscode.WebviewPanel): Promise<void> {
 function handleOpenFile(msg: Record<string, unknown>): void {
   const filePath = msg.path as string;
   if (filePath) {
-    vscode.env.openExternal(vscode.Uri.file(filePath));
+    vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: true });
   }
 }
 
@@ -214,28 +215,18 @@ function renderPanel(): string {
 </head>
 <body>
 <div class="wrap">
-  <!-- DEPT Branded Header -->
-  <div class="brand-bar">
-    <div class="brand-inner">
-      <div class="brand-left">
-        <span class="dept-logo">DEPT</span>
-        <span class="brand-divider"></span>
-        <span class="brand-label">AEM Component Tech Audit</span>
-      </div>
-      <span class="brand-tag">Enterprise</span>
-    </div>
-  </div>
-
-  <header>
+  <header class="hero">
     <div>
-      <h1>Component Audit</h1>
-      <p class="sub">Deep-scan AEMaaCS &amp; AMS projects — classification, duplicates, usage analysis, Sling Model overrides, and actionable recommendations.</p>
+      <p class="eyebrow">AEM COMPONENT CATALOG</p>
+      <h1>Component Tech Audit</h1>
+      <p class="subtitle">Deep-scan AEMaaCS &amp; AMS projects — classification, duplicates, usage analysis, Sling Model overrides, and actionable recommendations.</p>
     </div>
+    <span class="brand-tag">DEPT</span>
   </header>
 
-  <section class="card" id="noproject" hidden>
+  <section class="card" id="noproject" hidden role="alert">
     <div class="empty-state">
-      <div class="empty-icon-wrap"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
+      <div class="empty-icon-wrap"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
       <h2>No AEM Projects Found</h2>
       <p>Open an AEM Project Archetype workspace (AEMaaCS or AMS) to run the tech audit.</p>
     </div>
@@ -245,17 +236,22 @@ function renderPanel(): string {
     <section class="card">
       <div class="card-header"><h2>Projects</h2><span class="card-count" id="projectCount"></span></div>
       <p class="hint">Select projects to include in the audit. Both AEMaaCS and AEM AMS are supported.</p>
-      <div id="projectList" class="project-list"></div>
+      <div class="select-actions" id="selectActions">
+        <button type="button" class="link-btn" id="selectAll">Select all</button>
+        <span class="select-sep">|</span>
+        <button type="button" class="link-btn" id="deselectAll">Deselect all</button>
+      </div>
+      <div id="projectList" class="project-list" role="group" aria-label="Project selection"></div>
     </section>
 
     <section class="card">
       <div class="card-header"><h2>Content Packages</h2><span class="card-badge optional">Optional</span></div>
       <p class="hint">Provide CRX content package <strong>.zip</strong> files to analyze real production usage data. Without this, usage counts will be zero.</p>
       <div class="toggle-row">
-        <div class="toggle-switch" id="cpToggle">
-          <span class="track"></span>
+        <button type="button" class="toggle-switch" id="cpToggle" role="switch" aria-checked="false" aria-label="Analyze content packages">
+          <span class="track" aria-hidden="true"></span>
           <span>Analyze content packages</span>
-        </div>
+        </button>
       </div>
       <div id="cpConfig" class="cp-config" hidden>
         <div class="cp-guide">
@@ -296,25 +292,25 @@ function renderPanel(): string {
 
     <div class="run-section">
       <div id="progressArea" class="progress-area" hidden>
-        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-        <p id="progressText" class="progress-text">Initializing...</p>
+        <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" id="progressFill"></div></div>
+        <p id="progressText" class="progress-text" aria-live="polite">Initializing...</p>
       </div>
+      <div id="auditError" class="audit-error" hidden role="alert"></div>
       <button type="button" class="primary run-btn" id="runBtn">Run Component Audit</button>
     </div>
   </div>
 
-  <div id="resultsSection" hidden>
+  <div id="resultsSection" hidden tabindex="-1">
     <div class="results-banner">
       <div class="results-banner-left">
-        <span class="dept-badge">DEPT</span>
         <div>
-          <h2>Audit Results</h2>
+          <p class="eyebrow">AUDIT RESULTS</p>
           <p class="results-sub" id="resultsSub"></p>
         </div>
       </div>
       <div class="results-actions">
-        <button type="button" class="ghost" id="rerunBtn">Run Again</button>
-        <button type="button" class="accent-btn" id="exportBtn">Export Excel Report</button>
+        <button type="button" class="btn-secondary" id="rerunBtn">Run Again</button>
+        <button type="button" class="btn-primary" id="exportBtn">Export Excel Report</button>
       </div>
     </div>
     <div id="exportStatus" class="export-status" hidden></div>
@@ -380,7 +376,7 @@ function renderPanel(): string {
     </div>
 
     <div class="results-footer">
-      <span>Confidential — Prepared by DEPT</span>
+      <span>Prepared by DEPT</span>
       <span id="generatedAt"></span>
     </div>
   </div>
@@ -394,35 +390,35 @@ function auditStyles(): string {
   return `
 *{box-sizing:border-box}
 :root{
-  --brand-bg:#000;--brand-fg:#fff;
-  --fg:var(--vscode-foreground);
+  --panel:var(--vscode-sideBar-background);
+  --fg:var(--vscode-editor-foreground);
   --fg-muted:var(--vscode-descriptionForeground);
-  --card-bg:var(--vscode-editorWidget-background,rgba(127,127,127,.06));
-  --border:var(--vscode-widget-border,rgba(127,127,127,.18));
+  --accent:var(--vscode-textLink-foreground);
+  --card-bg:var(--vscode-editorWidget-background,var(--panel));
+  --border:var(--vscode-panel-border,rgba(127,127,127,.18));
   --border-light:var(--vscode-widget-border,rgba(127,127,127,.1));
-  --input-bg:var(--vscode-input-background)
+  --input-bg:var(--vscode-input-background);
+  --btn-bg:var(--vscode-button-background);
+  --btn-fg:var(--vscode-button-foreground);
+  --btn-hover:var(--vscode-button-hoverBackground);
+  --btn2-bg:var(--vscode-button-secondaryBackground);
+  --btn2-fg:var(--vscode-button-secondaryForeground);
+  --btn2-hover:var(--vscode-button-secondaryHoverBackground)
 }
-body{font-family:var(--vscode-font-family);color:var(--fg);background:var(--vscode-editor-background);margin:0;font-size:13px}
-.wrap{max-width:900px;margin:0 auto;padding:0 24px 60px}
+body{font-family:var(--vscode-font-family);color:var(--fg);background:var(--vscode-editor-background);margin:0;padding:28px;font-size:13px}
+.wrap{max-width:960px;margin:0 auto}
 
-/* Brand bar — always black/white like DEPT website */
-.brand-bar{background:var(--brand-bg);margin:0 -24px;padding:0 24px}
-.brand-inner{display:flex;align-items:center;justify-content:space-between;padding:14px 0}
-.brand-left{display:flex;align-items:center;gap:14px}
-.dept-logo{font-weight:900;font-size:18px;letter-spacing:.08em;color:var(--brand-fg)}
-.brand-divider{width:1px;height:18px;background:rgba(255,255,255,.2)}
-.brand-label{font-size:12px;color:rgba(255,255,255,.65);letter-spacing:.02em}
-.brand-tag{padding:3px 10px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.04em;background:rgba(255,255,255,.15);color:#fff}
-
-/* Header */
-header{padding:22px 0 18px;border-bottom:1px solid var(--border);margin-bottom:18px}
-header h1{font-size:22px;margin:0 0 6px}
-.sub{color:var(--fg-muted);margin:0;font-size:13px;line-height:1.5}
+/* Hero header — matches dashboard & config panels */
+.hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;padding-bottom:22px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.eyebrow{margin-bottom:6px;color:var(--accent);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+h1{margin:0 0 6px;font-size:26px}
+.subtitle{color:var(--fg-muted);margin:0;font-size:13px;line-height:1.5}
+.brand-tag{border-radius:999px;padding:6px 10px;font-size:11px;font-weight:600;white-space:nowrap;color:var(--fg-muted);border:1px solid var(--border);background:var(--card-bg)}
 
 /* Cards */
 h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-muted);margin:0}
 h3{font-size:14px;margin:0 0 14px;color:var(--fg);font-weight:600}
-.card{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px}
 .card-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .card-count{font-size:11px;font-weight:700;color:var(--fg);background:rgba(127,127,127,.12);padding:2px 8px;border-radius:8px}
 .card-badge{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600}
@@ -431,10 +427,18 @@ h3{font-size:14px;margin:0 0 14px;color:var(--fg);font-weight:600}
 .muted{color:var(--fg-muted);font-size:12px;margin:6px 0 0}
 .field-label{display:block;font-size:12px;color:var(--fg-muted);margin:0 0 6px;font-weight:600}
 
+/* Select actions */
+.select-actions{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.link-btn{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;font-size:11px;padding:2px 4px;border-radius:3px}
+.link-btn:hover{text-decoration:underline}
+.link-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+.select-sep{color:var(--fg-muted);font-size:11px}
+
 /* Project list */
 .project-list{display:flex;flex-direction:column;gap:6px}
-.project-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .12s}
+.project-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all .12s;background:none;width:100%;text-align:left;font:inherit;color:inherit}
 .project-item:hover{border-color:var(--vscode-focusBorder);background:rgba(127,127,127,.04)}
+.project-item:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px}
 .project-item.selected{border-color:var(--fg);background:rgba(127,127,127,.08)}
 .project-check{flex:none;width:18px;height:18px;border-radius:4px;border:2px solid rgba(127,127,127,.4);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;transition:.12s}
 .project-item.selected .project-check{border-color:var(--fg);background:var(--fg);color:var(--vscode-editor-background)}
@@ -445,10 +449,11 @@ h3{font-size:14px;margin:0 0 14px;color:var(--fg);font-weight:600}
 
 /* Toggle */
 .toggle-row{margin-bottom:10px}
-.toggle-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.toggle-switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;background:none;border:none;padding:4px 0;font:inherit;color:inherit}
+.toggle-switch:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px;border-radius:4px}
 .toggle-switch .track{flex:none;width:34px;height:20px;border-radius:20px;background:rgba(127,127,127,.35);position:relative;transition:.15s}
 .toggle-switch .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
-.toggle-switch.on .track{background:var(--fg)}
+.toggle-switch.on .track{background:var(--btn-bg)}
 .toggle-switch.on .track::after{transform:translateX(14px)}
 .cp-config{margin-top:10px}
 .cp-guide{margin-bottom:14px;padding:14px 16px;border-radius:8px;border:1px solid var(--border);background:rgba(127,127,127,.04)}
@@ -462,8 +467,10 @@ h3{font-size:14px;margin:0 0 14px;color:var(--fg);font-weight:600}
 .cp-paths{margin-bottom:10px;padding:8px 12px;border-radius:6px;background:var(--input-bg);min-height:36px}
 .cp-path{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0}
 .cp-path .remove{cursor:pointer;color:var(--fg-muted);font-size:14px;border:none;background:none;padding:0 4px}
-.ghost-btn{padding:7px 14px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--fg);cursor:pointer;font:inherit;font-size:12px}
-.ghost-btn:hover{border-color:var(--fg);background:rgba(127,127,127,.06)}
+.cp-path .remove:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px;border-radius:2px}
+.ghost-btn{padding:7px 14px;border:1px solid var(--vscode-button-border,var(--border));border-radius:4px;background:var(--btn2-bg);color:var(--btn2-fg);cursor:pointer;font:inherit;font-size:12px}
+.ghost-btn:hover{background:var(--btn2-hover)}
+.ghost-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
 
 /* Derivation box */
 .derivation-box{margin-top:12px;padding:14px 16px;border-radius:8px;border:1px solid var(--border);background:rgba(127,127,127,.04)}
@@ -477,40 +484,48 @@ h3{font-size:14px;margin:0 0 14px;color:var(--fg);font-weight:600}
 .slider-row{display:flex;align-items:center;gap:12px}
 .slider-row input[type=range]{flex:1;-webkit-appearance:none;height:5px;border-radius:3px;background:rgba(127,127,127,.25);outline:none}
 .slider-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--fg);cursor:pointer;border:2px solid var(--vscode-editor-background);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.slider-row input[type=range]:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px;border-radius:3px}
 .slider-val{font-weight:700;font-size:14px;min-width:36px;text-align:right}
 .config-grid{display:flex;flex-direction:column;gap:16px}
 
+/* Buttons — VS Code native styling */
+.btn-primary{padding:8px 18px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;background:var(--btn-bg);color:var(--btn-fg);font:inherit;font-weight:600;font-size:12px;cursor:pointer}
+.btn-primary:hover{background:var(--btn-hover)}
+.btn-primary:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+.btn-secondary{padding:8px 18px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;background:var(--btn2-bg);color:var(--btn2-fg);font:inherit;font-size:12px;cursor:pointer}
+.btn-secondary:hover{background:var(--btn2-hover)}
+.btn-secondary:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+
 /* Run button & progress */
 .run-section{margin:22px 0;display:flex;flex-direction:column;align-items:center;gap:14px}
-.run-btn{padding:14px 40px;font-size:14px;border-radius:8px;background:#000;border:none;color:#fff;font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:.02em}
-.run-btn:hover{background:#222;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.2)}
-.run-btn:disabled{opacity:.4;cursor:default;transform:none;box-shadow:none}
+.run-btn{padding:14px 40px;font-size:14px;border-radius:4px;background:var(--btn-bg);border:1px solid var(--vscode-button-border,transparent);color:var(--btn-fg);font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:.02em}
+.run-btn:hover{background:var(--btn-hover)}
+.run-btn:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
+.run-btn:disabled{opacity:.4;cursor:default}
 .progress-area{width:100%;max-width:500px}
 .progress-bar{height:5px;border-radius:3px;background:rgba(127,127,127,.15);overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;background:var(--fg);width:0%;transition:width .4s ease}
+.progress-fill{height:100%;border-radius:3px;background:var(--btn-bg);width:0%;transition:width .4s ease}
 .progress-fill.indeterminate{width:100%;animation:shimmer 1.5s infinite}
 @keyframes shimmer{0%{opacity:.3}50%{opacity:1}100%{opacity:.3}}
 .progress-text{text-align:center;font-size:12px;color:var(--fg-muted);margin:8px 0 0}
+.audit-error{padding:12px 16px;border-radius:8px;font-size:12px;font-weight:600;border:1px solid var(--border);background:rgba(127,127,127,.06);color:var(--fg);text-align:center;max-width:500px;width:100%}
 
-/* Results banner — always black */
-.results-banner{display:flex;align-items:center;justify-content:space-between;margin:20px 0 14px;padding:16px 18px;background:#000;border-radius:10px}
+/* Results banner — themed card */
+.results-banner{display:flex;align-items:center;justify-content:space-between;margin:20px 0 14px;padding:16px 18px;background:var(--panel);border:1px solid var(--border);border-radius:10px}
 .results-banner-left{display:flex;align-items:center;gap:14px}
-.dept-badge{background:rgba(255,255,255,.15);color:#fff;font-weight:900;font-size:11px;letter-spacing:.06em;padding:4px 10px;border-radius:6px}
-.results-banner h2{margin:0;font-size:16px;text-transform:none;letter-spacing:0;color:#fff}
-.results-sub{font-size:11px;color:rgba(255,255,255,.5);margin:2px 0 0}
+.results-banner .eyebrow{margin-bottom:0}
+.results-sub{font-size:11px;color:var(--fg-muted);margin:4px 0 0}
 .results-actions{display:flex;gap:8px;align-items:center}
-.accent-btn{padding:8px 18px;border:none;border-radius:6px;background:#fff;color:#000;font:inherit;font-weight:600;font-size:12px;cursor:pointer;transition:background .12s}
-.accent-btn:hover{background:#ddd}
 
 /* Export status */
 .export-status{padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .export-status.ok{background:rgba(127,127,127,.08);color:var(--fg);border:1px solid var(--border)}
 .export-status.err{background:rgba(127,127,127,.08);color:var(--fg);border:1px solid var(--border)}
 
-/* Metrics grid */
-.metrics-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
-.metric{display:flex;flex-direction:column;gap:3px;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--card-bg)}
-.metric strong{font-size:24px;font-weight:800}
+/* Metrics grid — matches dashboard */
+.metrics-grid{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:10px;margin-bottom:14px}
+.metric{display:flex;flex-direction:column;gap:3px;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+.metric strong{font-size:22px;font-weight:800}
 .metric span{color:var(--fg-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
 .metric.highlight strong{color:var(--fg)}
 .metric.warn strong{color:var(--fg)}
@@ -552,7 +567,7 @@ h3{font-size:14px;margin:0 0 14px;color:var(--fg);font-weight:600}
 .table-wrap{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:6px}
 table{width:100%;border-collapse:collapse;font-size:11px}
 th,td{padding:7px 10px;border-bottom:1px solid var(--border-light);text-align:left}
-th{position:sticky;top:0;background:var(--card-bg);color:var(--fg-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+th{position:sticky;top:0;z-index:1;background:var(--panel);color:var(--fg-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
 code{font-family:var(--vscode-editor-font-family,monospace);font-size:11px}
 
 /* Recommendations — monochrome badges */
@@ -587,8 +602,9 @@ code{font-family:var(--vscode-editor-font-family,monospace);font-size:11px}
 .xsite-badge.partial{background:rgba(127,127,127,.15);color:var(--fg)}
 
 /* Coverage table */
+.cov-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:6px}
 .cov-table{width:100%;border-collapse:collapse;font-size:12px}
-.cov-table th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-muted);border-bottom:2px solid var(--border);font-weight:700}
+.cov-table th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--fg-muted);border-bottom:2px solid var(--border);font-weight:700;position:sticky;top:0;z-index:1;background:var(--panel)}
 .cov-table td{padding:8px 10px;border-bottom:1px solid var(--border-light)}
 .cov-table .proj-name{font-weight:600}
 .cov-status{display:inline-block;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.03em}
@@ -601,23 +617,33 @@ code{font-family:var(--vscode-editor-font-family,monospace);font-size:11px}
 /* Footer */
 .results-footer{display:flex;justify-content:space-between;padding:16px 0;border-top:1px solid var(--border);margin-top:12px;font-size:11px;color:var(--fg-muted)}
 
-/* Buttons */
-.ghost{padding:7px 14px;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:transparent;color:#fff;cursor:pointer;font:inherit;font-size:12px}
-.ghost:hover{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.08)}
-button.primary{padding:10px 20px;border:none;border-radius:8px;background:var(--vscode-button-background);color:var(--vscode-button-foreground);font:inherit;font-weight:600;cursor:pointer}
-button.primary:hover{background:var(--vscode-button-hoverBackground)}
-button.primary:disabled{opacity:.5;cursor:default}
-
-.empty-state{text-align:center;padding:30px 20px;color:var(--fg-muted)}
+/* Empty state */
+.empty-state{text-align:center;padding:36px 20px;color:var(--fg-muted)}
 .empty-state h2{color:var(--fg);font-size:16px;text-transform:none;letter-spacing:0}
 .empty-icon-wrap{margin-bottom:12px;opacity:.4}
 
+/* Focus */
+button:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:1px}
+
+/* Responsive */
+@media(max-width:900px){
+  body{padding:18px}
+  .hero{flex-direction:column}
+}
+@media(max-width:800px){
+  .metrics-grid{grid-template-columns:repeat(3,1fr)}
+}
 @media(max-width:700px){
   .metrics-grid{grid-template-columns:repeat(2,1fr)}
   .results-grid{grid-template-columns:1fr}
   .core-model-grid{grid-template-columns:1fr}
   .results-banner{flex-direction:column;gap:12px;align-items:flex-start}
   .dup-item,.xsite-item{grid-template-columns:1fr}
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
 }
 `;
 }
@@ -648,12 +674,12 @@ function renderProjects(){
   $('projectCount').textContent=selectedIds.size+'/'+STATE.projects.length+' selected';
   el.innerHTML=STATE.projects.map(p=>{
     const sel=selectedIds.has(p.id);
-    return '<div class="project-item'+(sel?' selected':'')+'" data-id="'+p.id+'">'
-      +'<div class="project-check">'+(sel?'\\u2713':'')+'</div>'
+    return '<button type="button" class="project-item'+(sel?' selected':'')+'" data-id="'+p.id+'" role="checkbox" aria-checked="'+(sel?'true':'false')+'" aria-label="'+esc(p.artifactId)+' ('+esc(p.platformLabel)+')">'
+      +'<div class="project-check" aria-hidden="true">'+(sel?'\\u2713':'')+'</div>'
       +'<div class="project-meta">'
       +'<div class="project-name">'+esc(p.artifactId)+'<span class="platform-badge '+p.platform+'">'+esc(p.platformLabel)+'</span></div>'
       +'<div class="project-detail">'+esc(p.groupId)+':'+esc(p.version)+' \\u00b7 '+p.modules.length+' modules \\u00b7 Java '+esc(p.javaVersion)+'</div>'
-      +'</div></div>';
+      +'</div></button>';
   }).join('');
   el.querySelectorAll('.project-item').forEach(item=>{
     item.onclick=()=>{
@@ -662,13 +688,15 @@ function renderProjects(){
       renderProjects();
     };
   });
+  const sa=$('selectActions');
+  if(STATE.projects.length<2)sa.hidden=true;else sa.hidden=false;
 }
 
 function renderContentPaths(){
   const el=$('cpPaths');
   if(!contentPaths.length){el.innerHTML='<p class="muted">No folders selected.</p>';return;}
   el.innerHTML=contentPaths.map((p,i)=>
-    '<div class="cp-path"><code>'+esc(p)+'</code><button class="remove" data-idx="'+i+'">\\u00d7</button></div>'
+    '<div class="cp-path"><code>'+esc(p)+'</code><button type="button" class="remove" data-idx="'+i+'" aria-label="Remove '+esc(p.split('/').pop()||p)+'">\\u00d7</button></div>'
   ).join('');
   el.querySelectorAll('.remove').forEach(btn=>{
     btn.onclick=()=>{contentPaths.splice(parseInt(btn.dataset.idx),1);renderContentPaths();};
@@ -677,17 +705,23 @@ function renderContentPaths(){
 
 function setupListeners(){
   const toggle=$('cpToggle');
-  toggle.onclick=()=>{cpEnabled=!cpEnabled;toggle.className='toggle-switch'+(cpEnabled?' on':'');$('cpConfig').hidden=!cpEnabled;};
+  toggle.onclick=()=>{cpEnabled=!cpEnabled;toggle.className='toggle-switch'+(cpEnabled?' on':'');toggle.setAttribute('aria-checked',cpEnabled?'true':'false');$('cpConfig').hidden=!cpEnabled;};
   $('browsePkgs').onclick=()=>vscode.postMessage({type:'browsePackages'});
   const slider=$('threshold');
-  slider.oninput=()=>{$('thresholdVal').textContent=slider.value+'%';};
+  slider.oninput=()=>{$('thresholdVal').textContent=slider.value+'%';slider.setAttribute('aria-valuetext',slider.value+'% similarity threshold');};
+  $('selectAll').onclick=()=>{STATE.projects.forEach(p=>selectedIds.add(p.id));renderProjects();};
+  $('deselectAll').onclick=()=>{selectedIds.clear();renderProjects();};
   $('runBtn').onclick=runAudit;
   $('exportBtn').onclick=()=>{$('exportStatus').hidden=true;vscode.postMessage({type:'exportExcel'});};
-  $('rerunBtn').onclick=()=>{$('resultsSection').hidden=true;$('configSection').hidden=false;$('exportStatus').hidden=true;window.scrollTo(0,0);};
+  $('rerunBtn').onclick=()=>{$('resultsSection').hidden=true;$('configSection').hidden=false;$('exportStatus').hidden=true;$('auditError').hidden=true;$('runBtn').focus();window.scrollTo(0,0);};
 }
 
 function runAudit(){
-  if(!selectedIds.size){return;}
+  if(!selectedIds.size){
+    const err=$('auditError');err.hidden=false;err.textContent='Select at least one project to run the audit.';
+    return;
+  }
+  $('auditError').hidden=true;
   $('runBtn').disabled=true;
   $('progressArea').hidden=false;
   $('progressFill').style.width='0%';
@@ -781,7 +815,7 @@ function renderResults(r){
     if(partial.length)hint+=(' '+partial.length+' project(s) with partial site coverage.');
     $('coverageHint').textContent=hint;
 
-    let covHtml='<table class="cov-table"><thead><tr><th>Project</th><th>Sites</th><th>Coverage</th><th>Covered Sites</th><th>Pages Found</th><th>Missing Sites</th></tr></thead><tbody>';
+    let covHtml='<div class="cov-scroll"><table class="cov-table" aria-label="Usage coverage by project"><thead><tr><th>Project</th><th>Sites</th><th>Coverage</th><th>Covered Sites</th><th>Pages Found</th><th>Missing Sites</th></tr></thead><tbody>';
     for(const cov of r.usageCoverage){
       const status=!hasPackages?'missing':cov.hasCoverage?(cov.isPartial?'partial':'full'):'missing';
       const statusLabel=!hasPackages?'No Packages':cov.hasCoverage?(cov.isPartial?'Partial':'Full'):'Missing';
@@ -794,7 +828,7 @@ function renderResults(r){
         +'<td class="cov-sites">'+(cov.uncoveredSites.length?esc(cov.uncoveredSites.join(', ')):'\\u2014')+'</td>'
         +'</tr>';
     }
-    covHtml+='</tbody></table>';
+    covHtml+='</tbody></table></div>';
     $('usageCoverageContent').innerHTML=covHtml;
   }else{$('usageCoverageCard').hidden=true;}
 
@@ -867,7 +901,8 @@ function techRow(label,val){
 window.addEventListener('message',e=>{
   const m=e.data;if(!m)return;
   if(m.type==='packagesSelected'){
-    contentPaths.push(...(m.paths||[]));
+    const newPaths=(m.paths||[]).filter(p=>!contentPaths.includes(p));
+    contentPaths.push(...newPaths);
     renderContentPaths();
   }
   if(m.type==='auditProgress'){
@@ -879,16 +914,17 @@ window.addEventListener('message',e=>{
   if(m.type==='auditComplete'){
     $('progressFill').style.width='100%';
     $('progressFill').className='progress-fill';
-    setTimeout(()=>renderResults(m.result),300);
+    setTimeout(()=>{renderResults(m.result);$('resultsSection').focus();},300);
   }
   if(m.type==='auditError'){
     $('progressArea').hidden=true;
     $('runBtn').disabled=false;
-    const st=$('exportStatus');st.hidden=false;st.className='export-status err';st.textContent='Audit failed: '+m.error;
+    const err=$('auditError');err.hidden=false;err.textContent='Audit failed: '+m.error;
+    err.focus();
   }
   if(m.type==='exportComplete'){
     const st=$('exportStatus');st.hidden=false;st.className='export-status ok';
-    st.textContent='\\u2713 Report saved successfully — '+m.path.split('/').pop();
+    st.textContent='\\u2713 Report saved successfully \\u2014 '+m.path.split('/').pop();
   }
 });
 
@@ -896,11 +932,3 @@ init();
 `;
 }
 
-function projectId(root: string): string {
-  return crypto.createHash('sha256').update(root).digest('hex').slice(0, 16);
-}
-
-function dateStamp(): string {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-}

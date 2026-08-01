@@ -91,27 +91,32 @@
       {
         "command": "aemComponentLibrary.configure",
         "title": "AEM Component Catalog: Configure & Generate Micro-site",
-        "icon": "$(rocket)"
+        "icon": "$(rocket)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.deployLocal",
         "title": "AEM Component Catalog: Deploy to Local AEM (core, ui.apps, ui.config)",
-        "icon": "$(cloud-upload)"
+        "icon": "$(cloud-upload)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.generate",
         "title": "AEM Component Catalog: Generate (Use Existing Config)",
-        "icon": "$(play)"
+        "icon": "$(play)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.preview",
         "title": "AEM Component Catalog: Preview Generation Plan",
-        "icon": "$(eye)"
+        "icon": "$(eye)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.scan",
         "title": "AEM Component Catalog: Scan Components",
-        "icon": "$(search)"
+        "icon": "$(search)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.refreshSidebar",
@@ -126,22 +131,26 @@
       {
         "command": "aemComponentLibrary.doctor",
         "title": "AEM Component Catalog: (Advanced) Run AEM Cloud Doctor",
-        "icon": "$(shield)"
+        "icon": "$(shield)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.rollback",
         "title": "AEM Component Catalog: Roll Back Last Generation",
-        "icon": "$(history)"
+        "icon": "$(history)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.exportSupportBundle",
         "title": "AEM Component Catalog: (Advanced) Export Redacted Support Bundle",
-        "icon": "$(export)"
+        "icon": "$(export)",
+        "enablement": "workspaceFolderCount > 0"
       },
       {
         "command": "aemComponentLibrary.audit",
         "title": "AEM Component Audit: Generate Tech Audit Report (AEMaaCS & AMS)",
-        "icon": "$(checklist)"
+        "icon": "$(checklist)",
+        "enablement": "workspaceFolderCount > 0"
       }
     ],
     "menus": {

@@ -13,6 +13,7 @@ import { supportBundleCommand } from './commands/support';
 import { ActionsProvider, ProjectsProvider, ComponentsProvider } from './sidebar/treeProviders';
 import { openDashboard } from './webview/dashboard';
 import { openAuditPanel } from './webview/auditPanel';
+import { discoverWorkspaceProjects } from './commands/projectSelection';
 
 export function activate(context: vscode.ExtensionContext): void {
   // Sidebar tree providers
@@ -70,13 +71,30 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  // Status bar item
+  // Auto-refresh sidebar when workspace folders change
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => refreshAll()),
+  );
+
+  // Status bar — only visible when AEM projects are detected
   const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusItem.text = '$(layers) AEM CL';
   statusItem.tooltip = 'AEM Component Catalog';
   statusItem.command = 'aemComponentLibrary.openDashboard';
-  statusItem.show();
   context.subscriptions.push(statusItem);
+
+  const updateStatusBar = () => {
+    const projects = discoverWorkspaceProjects();
+    if (projects.length > 0) {
+      statusItem.show();
+    } else {
+      statusItem.hide();
+    }
+  };
+  updateStatusBar();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => updateStatusBar()),
+  );
 }
 
 export function deactivate(): void {

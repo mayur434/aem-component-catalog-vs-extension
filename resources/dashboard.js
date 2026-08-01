@@ -10,5 +10,8 @@
     if (!action || !projectId) return;
     target.setAttribute('disabled', 'true');
     vscode.postMessage({ action: action, projectId: projectId });
+    setTimeout(function () {
+      target.removeAttribute('disabled');
+    }, 3000);
   });
 })();

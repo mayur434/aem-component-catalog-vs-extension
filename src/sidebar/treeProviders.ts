@@ -19,22 +19,25 @@ export class ActionsProvider implements vscode.TreeDataProvider<ActionTreeItem> 
 
   getChildren(): ActionTreeItem[] {
     return [
-      new ActionItem('Configure & Generate Micro-site', 'aemComponentLibrary.configure', '$(rocket)'),
-      new ActionItem('Generate (no prompts)', 'aemComponentLibrary.generate', '$(play)'),
-      new ActionItem('Deploy to Local AEM', 'aemComponentLibrary.deployLocal', '$(cloud-upload)'),
-      new ActionItem('Preview Changes', 'aemComponentLibrary.preview', '$(eye)'),
-      new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)'),
+      new ActionItem('Configure & Generate Micro-site', 'aemComponentLibrary.configure', '$(rocket)', 'Open the configuration panel and generate catalog pages'),
+      new ActionItem('Generate (no prompts)', 'aemComponentLibrary.generate', '$(play)', 'Re-generate catalog using existing configuration'),
+      new ActionItem('Deploy to Local AEM', 'aemComponentLibrary.deployLocal', '$(cloud-upload)', 'Build and deploy ui.apps, core, ui.config to local AEM'),
+      new ActionItem('Preview Changes', 'aemComponentLibrary.preview', '$(eye)', 'Show a dry-run of what will be generated'),
+      new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)', 'Undo the most recent catalog generation'),
       new SeparatorItem('Tech Audit'),
-      new ActionItem('Run Component Audit', 'aemComponentLibrary.audit', '$(checklist)'),
+      new ActionItem('Run Component Audit', 'aemComponentLibrary.audit', '$(checklist)', 'Classify components, detect duplicates, and analyse usage'),
     ];
   }
 }
 
 class ActionItem extends vscode.TreeItem {
-  constructor(label: string, commandId: string, icon: string) {
+  constructor(label: string, commandId: string, icon: string, tooltip?: string) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.command = { command: commandId, title: label };
     this.iconPath = new vscode.ThemeIcon(icon.replace('$(', '').replace(')', ''));
+    if (tooltip) {
+      this.tooltip = tooltip;
+    }
   }
 }
 
@@ -43,6 +46,7 @@ class SeparatorItem extends vscode.TreeItem {
     super(`── ${label} ──`, vscode.TreeItemCollapsibleState.None);
     this.description = '';
     this.iconPath = new vscode.ThemeIcon('dash');
+    this.contextValue = 'separator';
   }
 }
 

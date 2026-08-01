@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { projectId } from '../utils/webviewHelpers';
 import { saveConfig } from '../config/loader';
 import { runGeneration } from '../commands/generate';
 import { deployLocal } from '../commands/deploy';
@@ -329,6 +330,7 @@ input[type=text]:focus{outline:none;border-color:var(--vscode-focusBorder)}
 select{width:100%;padding:8px 10px;border-radius:6px;background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-foreground);border:1px solid var(--vscode-dropdown-border,transparent);font:inherit}
 .swatches{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .swatch{width:36px;height:36px;border-radius:9px;border:2px solid transparent;cursor:pointer;position:relative;outline:1px solid rgba(127,127,127,.3);padding:0}
+.swatch:focus-visible{outline:2px solid var(--vscode-focusBorder,#4CADE9);outline-offset:2px}
 .swatch.detected{outline:1px dashed var(--vscode-focusBorder,#4CADE9)}
 .swatch.sel{border-color:var(--vscode-focusBorder,#4CADE9);box-shadow:0 0 0 2px var(--vscode-focusBorder,#4CADE9)}
 .swatch.sel::after{content:"";position:absolute;inset:0;margin:auto;width:11px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-2px);mix-blend-mode:difference}
@@ -345,7 +347,8 @@ select{width:100%;padding:8px 10px;border-radius:6px;background:var(--vscode-dro
 .pill{padding:6px 12px;border-radius:20px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.35));background:transparent;color:var(--vscode-foreground);cursor:pointer;font:inherit;font-size:12px}
 .pill:hover{border-color:var(--vscode-focusBorder)}
 .toggles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.toggle{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.25));border-radius:8px;cursor:pointer}
+.toggle{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.25));border-radius:8px;cursor:pointer;background:none;font:inherit;color:inherit;width:100%;text-align:left}
+.toggle:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:-2px}
 .toggle .track{flex:none;width:34px;height:20px;border-radius:20px;background:rgba(127,127,127,.4);position:relative;transition:.15s}
 .toggle .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
 .toggle.on .track{background:var(--vscode-button-background)}
@@ -357,7 +360,7 @@ select{width:100%;padding:8px 10px;border-radius:6px;background:var(--vscode-dro
 .governance .toggle{opacity:.85}
 .ghost{padding:6px 12px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.4));border-radius:6px;background:transparent;color:var(--vscode-foreground);cursor:pointer;font:inherit;font-size:12px}
 .ghost:hover{border-color:var(--vscode-focusBorder)}
-.footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0 0;background:var(--vscode-editor-background)}
+.footer{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0 0;background:var(--vscode-editor-background);border-top:1px solid var(--vscode-widget-border,rgba(127,127,127,.2));margin-top:8px}
 .footer-actions{display:flex;gap:10px;align-items:center}
 .status{font-size:12px;color:var(--vscode-descriptionForeground);display:flex;align-items:center;gap:10px}
 .status.ok{color:var(--vscode-testing-iconPassed,#4CAF50)}
@@ -368,6 +371,7 @@ button.primary{padding:11px 22px;border:none;border-radius:8px;background:var(--
 button.primary:hover{background:var(--vscode-button-hoverBackground)}
 button.primary:disabled{opacity:.5;cursor:default}
 @media(max-width:560px){.toggles{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
 }
 
@@ -386,14 +390,14 @@ function swatchRow(elId,list,key){
   combined.forEach(c=>{
     const s=document.createElement('button');s.type='button';
     s.className='swatch'+(detected.some(d=>eq(d,c))?' detected':'')+(eq(cur.selections[key],c)?' sel':'');
-    s.style.background=c;s.title=c;s.onclick=()=>{cur.selections[key]=c;swatchRow(elId,list,key);renderPreview();};el.appendChild(s);
+    s.style.background=c;s.title=c;s.setAttribute('aria-label',key+' color '+c+(eq(cur.selections[key],c)?' (selected)':''));s.onclick=()=>{cur.selections[key]=c;swatchRow(elId,list,key);renderPreview();};el.appendChild(s);
   });
   const pick=document.createElement('input');pick.type='color';pick.className='picker';
-  pick.value=/^#[0-9a-f]{6}$/i.test(cur.selections[key])?cur.selections[key]:'#000000';pick.title='Custom color';
+  pick.value=/^#[0-9a-f]{6}$/i.test(cur.selections[key])?cur.selections[key]:'#000000';pick.title='Custom '+key+' color';pick.setAttribute('aria-label','Custom '+key+' color picker');
   pick.oninput=()=>{cur.selections[key]=pick.value;swatchRow(elId,list,key);renderPreview();};el.appendChild(pick);
 }
 function renderPresets(elId,list,cb){const el=$(elId);el.innerHTML='';list.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='pill';b.textContent=v;b.onclick=()=>cb(v);el.appendChild(b);});}
-function renderFeatureGroup(elId,group){const el=$(elId);el.innerHTML='';STATE.features.filter(f=>f.group===group).forEach(f=>{const on=!!cur.selections.features[f.key];const d=document.createElement('div');d.className='toggle'+(on?' on':'');d.innerHTML='<span class="track"></span><span class="meta"><b>'+f.label+'</b><small>'+f.hint+'</small></span>';d.onclick=()=>{cur.selections.features[f.key]=!cur.selections.features[f.key];renderFeatureGroup(elId,group);};el.appendChild(d);});}
+function renderFeatureGroup(elId,group){const el=$(elId);el.innerHTML='';STATE.features.filter(f=>f.group===group).forEach(f=>{const on=!!cur.selections.features[f.key];const d=document.createElement('button');d.type='button';d.className='toggle'+(on?' on':'');d.setAttribute('role','switch');d.setAttribute('aria-checked',on?'true':'false');d.setAttribute('aria-label',f.label+': '+f.hint);d.innerHTML='<span class="track" aria-hidden="true"></span><span class="meta"><b>'+f.label+'</b><small>'+f.hint+'</small></span>';d.onclick=()=>{cur.selections.features[f.key]=!cur.selections.features[f.key];renderFeatureGroup(elId,group);};el.appendChild(d);});}
 function renderPreview(){
   const p=cur.selections;
   $('preview').querySelector('.preview-hero').style.background=/^#[0-9a-f]{6}$/i.test(p.primary)?p.primary:'#03438E';
@@ -457,6 +461,3 @@ init();
 `;
 }
 
-function projectId(root: string): string {
-  return crypto.createHash('sha256').update(root).digest('hex').slice(0, 16);
-}
