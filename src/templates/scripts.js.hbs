@@ -925,7 +925,7 @@
     function bindLightbox() {
         var lightbox = document.getElementById("pcl-lightbox");
         if (!lightbox) return;
-        var items = document.querySelectorAll(".pcl-gallery__item");
+        var items = document.querySelectorAll(".pcl-carousel__img");
         if (items.length === 0) return;
 
         var lbImg = lightbox.querySelector(".pcl-lightbox__content img");
@@ -938,9 +938,7 @@
         var current = 0;
 
         items.forEach(function (item) {
-            var img = item.querySelector("img");
-            var label = item.querySelector(".pcl-gallery__item-label");
-            if (img) images.push({ src: img.src, alt: img.alt, label: label ? label.textContent.trim() : "" });
+            images.push({ src: item.src, alt: item.alt, label: item.dataset.name || item.alt || "" });
         });
 
         function open(idx) {
