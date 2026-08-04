@@ -243,7 +243,7 @@
         html += '<button type="button" class="pcl-card__fav" aria-label="Add to favorites"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>';
         html += '<div class="pcl-card__arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>';
         if (hasThumbnail) {
-            html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" loading="lazy"/></div>';
+            html += '<div class="pcl-card__preview pcl-card__preview--has-thumb"><img class="pcl-card__thumb" src="' + esc(comp.thumbnailPath) + '" alt="' + esc(comp.title) + '" width="400" height="225" loading="lazy"/></div>';
         } else {
             html += '<div class="pcl-card__preview"><div class="pcl-card__preview-pattern"></div><div class="pcl-card__preview-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div></div>';
         }
@@ -416,6 +416,8 @@
         el.addEventListener("change", function () {
             renderSections(data, el.value);
             applyFilters(searchInput ? searchInput.value : "", getActiveFilter(), getFacetState());
+            bindFavorites(data);
+            writeUrlState({ sort: el.value });
         });
     }
 
@@ -724,12 +726,13 @@
         if (many) html += '<button type="button" class="pcl-carousel__nav pcl-carousel__nav--prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>';
         html += '<div class="pcl-carousel__stage">';
         for (var i = 0; i < imgs.length; i++) {
-            html += '<img class="pcl-carousel__img' + (i === 0 ? " is-active" : "") + '" src="' + esc(imgs[i].path) + '" alt="' + esc(imgs[i].name) + '" data-name="' + esc(imgs[i].name) + '" loading="lazy"/>';
+            html += '<img class="pcl-carousel__img' + (i === 0 ? " is-active" : "") + '" src="' + esc(imgs[i].path) + '" alt="' + esc(imgs[i].name) + '" data-name="' + esc(imgs[i].name) + '" data-type="' + esc(imgs[i].type || "") + '" loading="lazy"/>';
         }
         html += "</div>";
         if (many) html += '<button type="button" class="pcl-carousel__nav pcl-carousel__nav--next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></button>';
         html += "</div>";
-        html += '<div class="pcl-carousel__caption">' + esc(imgs[0].name) + "</div>";
+        var firstType = imgs[0].type || "";
+        html += '<div class="pcl-carousel__caption">' + (firstType ? '<span class="pcl-carousel__badge pcl-carousel__badge--' + firstType + '">' + firstType.charAt(0).toUpperCase() + firstType.slice(1) + '</span> ' : '') + esc(imgs[0].name) + "</div>";
         if (many) {
             html += '<div class="pcl-carousel__dots">';
             for (var d = 0; d < imgs.length; d++) {
@@ -755,7 +758,11 @@
             imgs.forEach(function (im, k) { im.classList.toggle("is-active", k === i); });
             dots.forEach(function (dt, k) { dt.classList.toggle("is-active", k === i); });
             if (idxEl) idxEl.textContent = i + 1;
-            if (cap) cap.textContent = imgs[i].getAttribute("data-name");
+            if (cap) {
+                var imgType = imgs[i].getAttribute("data-type");
+                var imgName = imgs[i].getAttribute("data-name");
+                cap.innerHTML = (imgType ? '<span class="pcl-carousel__badge pcl-carousel__badge--' + imgType + '">' + imgType.charAt(0).toUpperCase() + imgType.slice(1) + '</span> ' : '') + imgName;
+            }
         }
         var prev = car.querySelector(".pcl-carousel__nav--prev");
         var next = car.querySelector(".pcl-carousel__nav--next");
@@ -938,7 +945,7 @@
         var current = 0;
 
         items.forEach(function (item) {
-            images.push({ src: item.src, alt: item.alt, label: item.dataset.name || item.alt || "" });
+            images.push({ src: item.src, alt: item.alt, label: item.dataset.name || item.alt || "", type: item.dataset.type || "" });
         });
 
         function open(idx) {
@@ -946,7 +953,8 @@
             current = idx;
             lbImg.src = images[idx].src;
             lbImg.alt = images[idx].alt;
-            lbCaption.textContent = images[idx].label || images[idx].alt;
+            var t = images[idx].type;
+            lbCaption.innerHTML = (t ? '<span class="pcl-carousel__badge pcl-carousel__badge--' + t + '">' + t.charAt(0).toUpperCase() + t.slice(1) + '</span> ' : '') + (images[idx].label || images[idx].alt);
             lightbox.classList.add("pcl-lightbox--open");
             lightbox.setAttribute("aria-hidden", "false");
             document.body.style.overflow = "hidden";
