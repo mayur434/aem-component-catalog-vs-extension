@@ -13,11 +13,11 @@ describe('transactional generation', () => {
     fixture = createAemCloudFixture();
     const config = loadConfig(fixture.root);
     const initial = buildGenerationPlan(fixture.root, config);
-    expect(initial.items).toHaveLength(17);
+    expect(initial.items).toHaveLength(19);
     expect(initial.items.every((item) => item.status === 'create')).toBe(true);
 
     const firstResult = applyGenerationPlan(initial, { actor: 'test' });
-    expect(firstResult.created).toBe(17);
+    expect(firstResult.created).toBe(19);
     expect(firstResult.skipped).toBe(0);
     expect(fs.existsSync(path.join(fixture.root, '.aem-catalog-manifest.json'))).toBe(true);
 

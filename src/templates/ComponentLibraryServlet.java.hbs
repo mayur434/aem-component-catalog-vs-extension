@@ -116,6 +116,9 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
     @Reference
     private transient ComponentUsageService usageService;
 
+    @Reference
+    private transient ComponentDuplicateService duplicateService;
+
     private transient volatile CacheEntry cache;
 
     @Override
@@ -167,6 +170,7 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             result.put("hasMore", to < sorted.size());
             result.put("averageQualityScore", catalog.averageQualityScore);
             result.put("usageBuiltAt", usageService.builtAt());
+            result.put("duplicatesBuiltAt", duplicateService.builtAt());
             response.getWriter().write(GSON.toJson(result));
         } catch (LoginException e) {
             LOG.error("Unable to obtain the component catalog service resolver", e);
@@ -506,6 +510,8 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
                 resource.getName(), group, category, usages.size());
         component.put("usageCount", usages.size());
         if (!usages.isEmpty()) component.put("usages", usages);
+        List<Map<String, String>> duplicates = duplicateService.duplicatesFor(relativeName);
+        if (!duplicates.isEmpty()) component.put("duplicates", duplicates);
         long createdAt = calendarToEpoch(properties.get("jcr:created", Calendar.class));
         long updatedAt = calendarToEpoch(properties.get("jcr:lastModified", Calendar.class));
         if (updatedAt == 0) updatedAt = calendarToEpoch(properties.get("cq:lastModified", Calendar.class));
@@ -560,8 +566,11 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             Map<String, String> image = new LinkedHashMap<>();
             image.put("name", name);
             image.put("path", child.getPath());
+            String type = imageType(name);
+            if (type != null) image.put("type", type);
             images.add(image);
         }
+        sortLayoutImages(images);
         return images;
     }
 
@@ -606,9 +615,36 @@ public final class ComponentLibraryServlet extends SlingSafeMethodsServlet imple
             Map<String, String> layout = new LinkedHashMap<>();
             layout.put("name", resource.getName());
             layout.put("path", resource.getPath());
+            String type = imageType(resource.getName());
+            if (type != null) layout.put("type", type);
             layouts.add(layout);
         }
+        sortLayoutImages(layouts);
         return layouts;
+    }
+
+    private static String imageType(String fileName) {
+        String lower = fileName.toLowerCase();
+        String base = lower.contains(".") ? lower.substring(0, lower.lastIndexOf('.')) : lower;
+        if (base.equals("desktop") || base.startsWith("desktop-") || base.startsWith("desktop_")) return "desktop";
+        if (base.equals("mobile") || base.startsWith("mobile-") || base.startsWith("mobile_")) return "mobile";
+        return null;
+    }
+
+    private static void sortLayoutImages(List<Map<String, String>> images) {
+        images.sort((a, b) -> {
+            int pa = imagePriority(a.get("name"));
+            int pb = imagePriority(b.get("name"));
+            if (pa != pb) return Integer.compare(pa, pb);
+            return a.get("name").compareToIgnoreCase(b.get("name"));
+        });
+    }
+
+    private static int imagePriority(String fileName) {
+        String type = imageType(fileName);
+        if ("desktop".equals(type)) return 0;
+        if ("mobile".equals(type)) return 1;
+        return 2;
     }
 
     private boolean isExcludedLayout(String fileName) {

@@ -670,6 +670,8 @@
             '<p class="pcl-audience-group__desc">Implementation details \u2014 relationships, inheritance, and code snippets.</p></div>';
         html += '<div class="pcl-audience-group__body">';
 
+        html += duplicatesSection(comp, pagePath);
+
         html += relationshipsSection(comp, pagePath);
 
         if (comp.superTypeChain && comp.superTypeChain.length > 0) {
@@ -886,6 +888,33 @@
         usageLabel = comp.title || comp.name || "";
         var openers = document.querySelectorAll("[data-usage-open]");
         for (var i = 0; i < openers.length; i++) openers[i].addEventListener("click", openUsageModal);
+    }
+
+    /* Duplicate components: structurally identical components computed server-side (see
+       ComponentDuplicateService). Rendered straight from the JSON summary rather than requiring
+       a resolved catalog entry, since a duplicate can be a brand's dormant, never-published copy
+       that was filtered out of the browsable catalog entirely — those render as plain text
+       instead of a dead link. */
+    function duplicatesSection(comp, pagePath) {
+        if (!comp.duplicates || comp.duplicates.length === 0) return "";
+        var known = {};
+        if (catalogData && catalogData.components) {
+            for (var i = 0; i < catalogData.components.length; i++) known[catalogData.components[i].name] = true;
+        }
+        var html = '<div class="pcl-relations pcl-relations--duplicate"><h3 class="pcl-relations__title">Duplicate Components</h3>';
+        html += '<div class="pcl-relations__group"><h4 class="pcl-relations__label">Structurally identical to</h4><ul class="pcl-relations__list">';
+        for (var d = 0; d < comp.duplicates.length; d++) {
+            var dup = comp.duplicates[d];
+            if (known[dup.name]) {
+                html += '<li><a href="' + pagePath + ".html/" + encodeURIComponent(dup.name) + '">' +
+                    esc(dup.title) + ' <span class="pcl-relations__cat">' + esc(dup.category || "") + "</span></a></li>";
+            } else {
+                html += '<li class="pcl-relations__unresolved">' + esc(dup.title) +
+                    ' <span class="pcl-relations__cat">' + esc(dup.category || "") + "</span></li>";
+            }
+        }
+        html += "</ul></div></div>";
+        return html;
     }
 
     /* Relationships: components that share this component's super type ("built on the

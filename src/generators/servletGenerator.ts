@@ -74,5 +74,25 @@ export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): Ge
         subCategoryProperty: config.taxonomy.subCategoryProperty,
       }),
     },
+    {
+      absolutePath: path.join(servletDir, 'ComponentFingerprint.java'),
+      kind: 'java',
+      content: renderTemplate('ComponentFingerprint.java.hbs', {
+        package: config.output.servletPackage,
+      }),
+    },
+    {
+      absolutePath: path.join(servletDir, 'ComponentDuplicateService.java'),
+      kind: 'java',
+      content: renderTemplate('ComponentDuplicateService.java.hbs', {
+        package: config.output.servletPackage,
+        componentRoot: config.components.root,
+        subServiceName: config.serviceUser.subServiceName,
+        excludedGroups: config.components.groups.exclude,
+        excludedLeafNames: config.components.exclude.leafNames,
+        excludedSuperTypeTokens: config.components.exclude.superTypeTokens,
+        categoryLabels,
+      }),
+    },
   ];
 }
