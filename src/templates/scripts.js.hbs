@@ -630,7 +630,10 @@
 
         html += carouselSection(comp);
 
-        html += '<div class="pcl-detail__grid">';
+        html += '<div class="pcl-audience-group pcl-audience-group--business">';
+        html += '<div class="pcl-audience-group__head"><span class="pcl-audience-group__eyebrow">For Business &amp; Designers</span>' +
+            '<p class="pcl-audience-group__desc">What this component is, and where it\u2019s live today.</p></div>';
+        html += '<div class="pcl-audience-group__body">';
         html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Overview</h3>';
         html += infoRow("Category", esc(comp.category || "General"));
         html += infoRow("Sub category", esc(subLabel(comp.subCategory || comp.group)));
@@ -641,6 +644,13 @@
         if (comp.formattedUpdatedAt) html += infoRow("Last updated", esc(comp.formattedUpdatedAt));
         if (comp.formattedCreatedAt) html += infoRow("Created", esc(comp.formattedCreatedAt));
         html += "</div>";
+        html += usageSection(comp);
+        html += "</div></div>";
+
+        html += '<div class="pcl-audience-group pcl-audience-group--authors">';
+        html += '<div class="pcl-audience-group__head"><span class="pcl-audience-group__eyebrow">For Authors</span>' +
+            '<p class="pcl-audience-group__desc">Configuration available when adding this component to a page.</p></div>';
+        html += '<div class="pcl-audience-group__body">';
         html += '<div class="pcl-info-card"><h3 class="pcl-info-card__title">Authoring options</h3>';
         if (comp.dialogFields && comp.dialogFields.length > 0) {
             html += '<ul class="pcl-fields">';
@@ -653,9 +663,12 @@
         } else {
             html += '<p class="pcl-fields__empty">No configurable options \u2014 this component renders as-is.</p>';
         }
-        html += "</div></div>";
+        html += "</div></div></div>";
 
-        html += usageSection(comp);
+        html += '<div class="pcl-audience-group pcl-audience-group--tech">';
+        html += '<div class="pcl-audience-group__head"><span class="pcl-audience-group__eyebrow">For Tech</span>' +
+            '<p class="pcl-audience-group__desc">Implementation details \u2014 relationships, inheritance, and code snippets.</p></div>';
+        html += '<div class="pcl-audience-group__body">';
 
         html += relationshipsSection(comp, pagePath);
 
@@ -679,6 +692,8 @@
         html += '<div class="pcl-code-section"><div class="pcl-code-section__header"><h3 class="pcl-code-section__title">Content XML</h3><button class="pcl-code-section__copy">Copy</button></div>';
         html += "<pre><code>" + esc("<" + comp.name + "\n    jcr:primaryType=\"nt:unstructured\"\n    sling:resourceType=\"" + comp.resourceType + "\"/>") + "</code></pre></div>";
         {{/if}}
+
+        html += "</div></div>";
 
         {{#if features.readme}}
         if (comp.readmePath) {
