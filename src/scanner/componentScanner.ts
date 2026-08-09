@@ -1,150 +1,341 @@
-/**
- * Scan local workspace component definitions (from JCR source files).
- * Reads .content.xml files under /apps/<appId>/components/ to build metadata.
- */
+/** Scan local AEMaaCS component definitions and enterprise metadata. */
 import * as fs from 'fs';
 import * as path from 'path';
 import { XMLParser } from 'fast-xml-parser';
-import { ComponentLibraryConfig } from '../config/schema';
+import type { ComponentLibraryConfig } from '../config/schema';
+import { assessComponentQuality, type QualityAssessment } from '../core/quality';
+import { getAemAdapter } from './platformAdapter';
 
 export interface ScannedComponent {
   name: string;
   title: string;
   description: string;
   group: string;
+  category: string;
+  categoryKey: string;
+  subCategory: string;
   resourceType: string;
   superType: string;
+  dependencies: string[];
   isContainer: boolean;
   hasDialog: boolean;
   hasEditConfig: boolean;
+  hasDesignDialog: boolean;
   hasReadme: boolean;
   hasThumbnail: boolean;
   thumbnailFile: string;
   layoutFiles: string[];
   path: string;
+  sourcePath: string;
+  owner: string;
+  status: string;
+  version: string;
+  tags: string[];
+  dialogFields: DialogField[];
+  modelClass: string;
+  exporter: boolean;
+  usageCount: number;
+  quality: QualityAssessment;
+}
+
+export interface DialogField {
+  name: string;
+  label: string;
+  resourceType: string;
+  required: boolean;
 }
 
 export interface ScanResult {
   total: number;
   groups: Record<string, number>;
   components: ScannedComponent[];
+  averageQualityScore: number;
 }
 
-/**
- * Scan the local workspace for AEM components.
- */
-export function scanComponents(projectRoot: string, config: ComponentLibraryConfig): ScanResult {
-  const componentsDir = path.join(
-    projectRoot, 'ui.apps', 'src', 'main', 'content', 'jcr_root',
-    'apps', config.appId, 'components'
-  );
+function resolveComponentsDir(projectRoot: string, config: ComponentLibraryConfig): string | null {
+  for (const jcrRootRelative of getAemAdapter().componentRoots) {
+    const jcrRoot = path.join(projectRoot, jcrRootRelative);
+    const componentsDir = path.join(jcrRoot, ...config.components.root.split('/').filter(Boolean));
+    if (fs.existsSync(componentsDir)) {
+      return componentsDir;
+    }
+  }
+  return null;
+}
 
-  if (!fs.existsSync(componentsDir)) {
-    return { total: 0, groups: {}, components: [] };
+export function scanComponents(projectRoot: string, config: ComponentLibraryConfig): ScanResult {
+  const componentsDir = resolveComponentsDir(projectRoot, config);
+  if (!componentsDir) {
+    return { total: 0, groups: {}, components: [], averageQualityScore: 0 };
   }
 
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+  const modelIndex = buildModelIndex(projectRoot);
+  const usageIndex = buildUsageIndex(projectRoot);
   const components: ScannedComponent[] = [];
   const groups: Record<string, number> = {};
   const excludedGroups = new Set(config.components.groups.exclude);
-  const thumbnailNames = new Set(config.components.thumbnails.fileNames);
-  const layoutExclude = config.components.layouts.exclude.map(p =>
-    new RegExp('^' + p.replace(/\*/g, '.*') + '$', 'i')
-  );
+  const layoutExclude = config.components.layouts.exclude.map(globToRegExp);
 
-  const entries = fs.readdirSync(componentsDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) { continue; }
-
-    const compDir = path.join(componentsDir, entry.name);
-    const contentXml = path.join(compDir, '.content.xml');
-    if (!fs.existsSync(contentXml)) { continue; }
-
+  walk(componentsDir, (directory) => {
+    const definition = path.join(directory, '.content.xml');
+    if (!fs.existsSync(definition)) {
+      return;
+    }
     try {
-      const xml = fs.readFileSync(contentXml, 'utf-8');
-      const doc = parser.parse(xml);
-      const root = doc['jcr:root'] || doc;
-
-      const primaryType = root['@_jcr:primaryType'];
-      if (primaryType !== 'cq:Component') { continue; }
-
-      const componentGroup = root['@_componentGroup'] || '';
-      if (!componentGroup || excludedGroups.has(componentGroup)) { continue; }
-
-      const name = entry.name;
-      const title = root['@_jcr:title'] || name;
-      const description = root['@_jcr:description'] || '';
-      const superType = root['@_sling:resourceSuperType'] || '';
-      const isContainer = root['@_cq:isContainer'] === '{Boolean}true' || root['@_cq:isContainer'] === 'true';
-
-      // Check for dialog
-      const hasDialog = fs.existsSync(path.join(compDir, '_cq_dialog', '.content.xml')) ||
-                         fs.existsSync(path.join(compDir, 'cq:dialog'));
-
-      // Check for editConfig
-      const hasEditConfig = fs.existsSync(path.join(compDir, '_cq_editConfig', '.content.xml')) ||
-                             fs.existsSync(path.join(compDir, 'cq:editConfig'));
-
-      // Check for README
-      const hasReadme = fs.existsSync(path.join(compDir, 'README.md'));
-
-      // Check for thumbnail
-      let hasThumbnail = false;
-      let thumbnailFile = '';
-      for (const tn of thumbnailNames) {
-        if (fs.existsSync(path.join(compDir, tn))) {
-          hasThumbnail = true;
-          thumbnailFile = tn;
-          break;
-        }
+      const document = parser.parse(fs.readFileSync(definition, 'utf-8')) as Record<string, any>;
+      const root = document['jcr:root'] ?? document;
+      if (property(root, 'jcr:primaryType') !== 'cq:Component') {
+        return;
+      }
+      const group = property(root, 'componentGroup');
+      if (!group || excludedGroups.has(group)) {
+        return;
       }
 
-      // Check for layouts
-      const layoutFiles: string[] = [];
-      const layoutDir = path.join(compDir, config.components.layouts.folderName);
-      if (fs.existsSync(layoutDir)) {
-        const layoutEntries = fs.readdirSync(layoutDir);
-        for (const lf of layoutEntries) {
-          if (/\.(svg|png|jpg|webp)$/i.test(lf)) {
-            const isExcluded = layoutExclude.some(re => re.test(lf));
-            if (isExcluded) {
-              // Layout-excluded files (like thumbnail.*) can serve as thumbnail fallback
-              if (!hasThumbnail) {
-                hasThumbnail = true;
-                thumbnailFile = `${config.components.layouts.folderName}/${lf}`;
-              }
-            } else {
-              layoutFiles.push(lf);
-            }
-          }
-        }
-      }
-
-      components.push({
-        name,
-        title,
-        description,
-        group: componentGroup,
-        resourceType: `${config.appId}/components/${name}`,
-        superType,
-        isContainer,
-        hasDialog,
-        hasEditConfig,
-        hasReadme,
-        hasThumbnail,
-        thumbnailFile,
-        layoutFiles,
-        path: `/apps/${config.appId}/components/${name}`,
+      const relative = path.relative(componentsDir, directory).split(path.sep).join('/');
+      const name = relative || path.basename(directory);
+      const jcrPath = `${config.components.root}/${relative}`.replace(/\/$/, '');
+      const resourceType = jcrPath.replace(/^\/apps\//, '');
+      const superType = property(root, 'sling:resourceSuperType');
+      const thumbnail = findThumbnail(directory, config, layoutExclude);
+      const layoutFiles = findLayouts(directory, config, layoutExclude);
+      const owner = property(root, config.governance.ownerProperty);
+      const status = property(root, config.governance.statusProperty);
+      const version = property(root, config.governance.versionProperty);
+      const quality = assessComponentQuality({
+        hasDialog: hasChildDefinition(directory, '_cq_dialog', 'cq:dialog'),
+        hasReadme: fs.existsSync(path.join(directory, 'README.md')),
+        hasThumbnail: thumbnail !== '',
+        owner,
+        status,
+        version,
       });
+      const dialogFields = readDialogFields(directory, parser);
+      const model = modelIndex.get(resourceType);
 
-      groups[componentGroup] = (groups[componentGroup] || 0) + 1;
+      const categoryKey = name.includes('/') ? name.split('/')[0] : '';
+      const category = config.taxonomy?.categoryLabels?.[categoryKey] ?? prettifyCategory(categoryKey);
+      const curatedSubCategory = property(root, config.taxonomy?.subCategoryProperty ?? 'catalogSubCategory');
+      const subCategory = curatedSubCategory || group;
+
+      const component: ScannedComponent = {
+        name,
+        title: property(root, 'jcr:title') || path.basename(directory),
+        description: property(root, 'jcr:description'),
+        group,
+        category,
+        categoryKey,
+        subCategory,
+        resourceType,
+        superType,
+        dependencies: superType ? [superType] : [],
+        isContainer: booleanProperty(root, 'cq:isContainer'),
+        hasDialog: hasChildDefinition(directory, '_cq_dialog', 'cq:dialog'),
+        hasEditConfig: hasChildDefinition(directory, '_cq_editConfig', 'cq:editConfig'),
+        hasDesignDialog: hasChildDefinition(directory, '_cq_design_dialog', 'cq:design_dialog'),
+        hasReadme: fs.existsSync(path.join(directory, 'README.md')),
+        hasThumbnail: thumbnail !== '',
+        thumbnailFile: thumbnail,
+        layoutFiles,
+        path: jcrPath,
+        sourcePath: definition,
+        owner,
+        status,
+        version,
+        tags: arrayProperty(root, config.governance.tagsProperty),
+        dialogFields,
+        modelClass: model?.className ?? '',
+        exporter: model?.exporter ?? false,
+        usageCount: usageIndex.get(resourceType) ?? 0,
+        quality,
+      };
+      components.push(component);
+      groups[group] = (groups[group] ?? 0) + 1;
     } catch {
-      // Skip malformed component definitions
+      // A malformed definition is surfaced by Cloud Doctor; scanning remains resilient.
+    }
+  });
+
+  components.sort((a, b) => a.title.localeCompare(b.title));
+  const averageQualityScore = components.length
+    ? Math.round(
+        components.reduce((total, component) => total + component.quality.score, 0) / components.length,
+      )
+    : 0;
+  return { total: components.length, groups, components, averageQualityScore };
+}
+
+function readDialogFields(directory: string, parser: XMLParser): DialogField[] {
+  const candidates = [
+    path.join(directory, '_cq_dialog', '.content.xml'),
+    path.join(directory, 'cq:dialog', '.content.xml'),
+  ];
+  const file = candidates.find(fs.existsSync);
+  if (!file) return [];
+  try {
+    const document = parser.parse(fs.readFileSync(file, 'utf-8')) as Record<string, any>;
+    const fields: DialogField[] = [];
+    collectDialogFields(document, fields);
+    return fields;
+  } catch {
+    return [];
+  }
+}
+
+function collectDialogFields(node: unknown, fields: DialogField[]): void {
+  if (!node || typeof node !== 'object') return;
+  const value = node as Record<string, unknown>;
+  const name = String(value['@_name'] ?? '');
+  const resourceType = String(value['@_sling:resourceType'] ?? '');
+  if (name.startsWith('./')) {
+    fields.push({
+      name,
+      label: String(value['@_fieldLabel'] ?? value['@_jcr:title'] ?? name.slice(2)),
+      resourceType,
+      required: ['true', '{Boolean}true'].includes(String(value['@_required'] ?? 'false')),
+    });
+  }
+  for (const child of Object.values(value)) {
+    if (Array.isArray(child)) child.forEach((item) => collectDialogFields(item, fields));
+    else collectDialogFields(child, fields);
+  }
+}
+
+function buildModelIndex(projectRoot: string): Map<string, { className: string; exporter: boolean }> {
+  const result = new Map<string, { className: string; exporter: boolean }>();
+  for (const javaRootRelative of getAemAdapter().modelRoots) {
+    const javaRoot = path.join(projectRoot, javaRootRelative);
+    if (!fs.existsSync(javaRoot)) continue;
+    walkFiles(javaRoot, (file) => {
+      if (!file.endsWith('.java')) return;
+      const source = fs.readFileSync(file, 'utf-8');
+      const modelBlock = source.match(/@Model\s*\(([\s\S]{0,1200}?)\)([\s\S]{0,600}?)\bclass\s+(\w+)/);
+      if (!modelBlock) return;
+      const resourceTypes = [
+        ...modelBlock[1].matchAll(/["']([a-zA-Z0-9/_-]+\/components\/[a-zA-Z0-9/_-]+)["']/g),
+      ];
+      const packageName = source.match(/^package\s+([\w.]+);/m)?.[1];
+      const className = packageName ? `${packageName}.${modelBlock[3]}` : modelBlock[3];
+      for (const match of resourceTypes) {
+        result.set(match[1], { className, exporter: /@Exporter\s*\(/.test(source) });
+      }
+    });
+  }
+  return result;
+}
+
+function buildUsageIndex(projectRoot: string): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const jcrRootRelative of getAemAdapter().usageRoots) {
+    const root = path.join(projectRoot, jcrRootRelative);
+    if (!fs.existsSync(root)) continue;
+    walkFiles(root, (file) => {
+      if (!file.endsWith('.xml')) return;
+      const source = fs.readFileSync(file, 'utf-8');
+      for (const match of source.matchAll(/sling:resourceType=["']([^"']+)["']/g)) {
+        result.set(match[1], (result.get(match[1]) ?? 0) + 1);
+      }
+    });
+  }
+  return result;
+}
+
+function walkFiles(directory: string, visit: (file: string) => void): void {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) walkFiles(absolute, visit);
+    else visit(absolute);
+  }
+}
+
+function walk(directory: string, visit: (directory: string) => void): void {
+  visit(directory);
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.startsWith('_cq_')) {
+      walk(path.join(directory, entry.name), visit);
     }
   }
+}
 
-  // Sort components by title
-  components.sort((a, b) => a.title.localeCompare(b.title));
+function property(root: Record<string, any>, name: string): string {
+  const value = root[`@_${name}`] ?? root[name];
+  return value === undefined || value === null ? '' : String(value);
+}
 
-  return { total: components.length, groups, components };
+function booleanProperty(root: Record<string, any>, name: string): boolean {
+  return ['true', '{Boolean}true'].includes(property(root, name));
+}
+
+function arrayProperty(root: Record<string, any>, name: string): string[] {
+  const value = root[`@_${name}`] ?? root[name];
+  if (Array.isArray(value)) {
+    return value.map(String);
+  }
+  const text = value === undefined || value === null ? '' : String(value);
+  return text
+    .replace(/^\[|\]$/g, '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function hasChildDefinition(directory: string, ...names: string[]): boolean {
+  return names.some((name) => {
+    const child = path.join(directory, name);
+    return fs.existsSync(path.join(child, '.content.xml')) || fs.existsSync(child);
+  });
+}
+
+function findThumbnail(directory: string, config: ComponentLibraryConfig, layoutExclude: RegExp[]): string {
+  for (const fileName of config.components.thumbnails.fileNames) {
+    if (fs.existsSync(path.join(directory, fileName))) {
+      return fileName;
+    }
+  }
+  const layoutDirectory = path.join(directory, config.components.layouts.folderName);
+  if (!fs.existsSync(layoutDirectory)) {
+    return '';
+  }
+  const fallback = fs
+    .readdirSync(layoutDirectory)
+    .find((file) => isImage(file) && layoutExclude.some((pattern) => pattern.test(file)));
+  return fallback ? `${config.components.layouts.folderName}/${fallback}` : '';
+}
+
+function findLayouts(directory: string, config: ComponentLibraryConfig, excluded: RegExp[]): string[] {
+  const layoutDirectory = path.join(directory, config.components.layouts.folderName);
+  if (!fs.existsSync(layoutDirectory)) {
+    return [];
+  }
+  return fs
+    .readdirSync(layoutDirectory)
+    .filter((file) => isImage(file) && !excluded.some((pattern) => pattern.test(file)))
+    .sort();
+}
+
+function isImage(file: string): boolean {
+  return /\.(svg|png|jpe?g|webp)$/i.test(file);
+}
+
+function globToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`, 'i');
+}
+
+function prettifyCategory(key: string): string {
+  if (!key) return 'General';
+  return key.charAt(0).toUpperCase() + key.slice(1);
 }

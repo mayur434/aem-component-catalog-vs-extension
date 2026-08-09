@@ -22,6 +22,16 @@ export interface ComponentsConfig {
     exclude: string[];
     labels: Record<string, string>;
   };
+  /**
+   * Components hidden from the catalog by default: structural/layout building blocks that
+   * every page uses (containers, parsys/grid, page/structure) add no value in a showcase.
+   * A component is excluded when its leaf name is in `leafNames` OR its sling:resourceSuperType
+   * contains one of `superTypeTokens`. (`.hidden` group components are already excluded.)
+   */
+  exclude: {
+    leafNames: string[];
+    superTypeTokens: string[];
+  };
   thumbnails: {
     fileNames: string[];
     fallbackIcon: 'grid' | 'box' | 'layers' | string;
@@ -39,6 +49,9 @@ export interface FeaturesConfig {
   codeSnippets: boolean;
   readme: boolean;
   darkMode: boolean;
+  qualityScore: boolean;
+  dependencyGraph: boolean;
+  accessibility: boolean;
 }
 
 export interface OutputConfig {
@@ -47,6 +60,10 @@ export interface OutputConfig {
   contentPath: string;
   pageTitle: string;
   pageResourceType: string;
+  /** The page component the catalog page extends; defaults to the WCM core page. */
+  pageSuperType: string;
+  /** DAM folder authors manage component images in (thumbnail + gallery), no deploy. */
+  assetRoot: string;
 }
 
 export interface ServiceUserConfig {
@@ -64,7 +81,78 @@ export interface HeroConfig {
   footerText: string;
 }
 
+export interface CatalogRuntimeConfig {
+  /** Enterprise catalogs are provisioned on Author only. */
+  deploymentTarget: 'author';
+  cacheSeconds: number;
+  pageSize: number;
+  /** Quartz cron for the nightly component-usage index rebuild (Sling scheduler). */
+  usageCron: string;
+  /** Quartz cron for the catalog JSON generator (writes static JSON to DAM). */
+  generatorCron: string;
+  /**
+   * When true, the catalog listing only includes components with at least one usage on a
+   * currently-published page - a not-yet-adopted or draft-only component stays hidden until
+   * some page using it is actually live. When false (the safer default for a component
+   * library meant for discovery), every shipped component is listed regardless of usage.
+   */
+  requirePublishedUsage: boolean;
+  /**
+   * Name of the Oak Lucene index (under /oak:index) that keeps the nightly usage crawl's
+   * sling:resourceType LIKE query off a full repository traversal. Bump the trailing number
+   * (e.g. -1 -> -2) if the index definition changes, to force Oak to reindex.
+   */
+  usageIndexName: string;
+  /**
+   * Whether the catalog endpoint also responds on publish. It always responds on author.
+   * Serving on publish makes component metadata (names, dialog fields) and the page paths
+   * using each component reachable by anything that can reach the publish tier, so the
+   * dispatcher filter is the real access gate there - this only decides whether the servlet
+   * responds at all.
+   */
+  serveOnPublish: boolean;
+}
+
+export interface GovernanceConfig {
+  policyFile: string;
+  ownerProperty: string;
+  statusProperty: string;
+  versionProperty: string;
+  tagsProperty: string;
+}
+
+/**
+ * Per-category public domain mapping, used to turn the "where it's used" links (built from
+ * raw JCR content paths) into absolute URLs that resolve regardless of which host the
+ * catalog itself is being viewed from. Each brand site this catalog scans is served from
+ * its own public domain, and that domain differs between stage and prod too - a bare
+ * relative link only ever worked by coincidence when the catalog was browsed from the same
+ * host that also serves /content directly (e.g. localhost).
+ *
+ * Leaving `prodDomain`/`stageDomain` empty is a valid, expected state ("not configured yet")
+ * and keeps the old relative-link behaviour for that category - it is not an error.
+ */
+export interface SiteDomainEntry {
+  category: string;
+  prodDomain: string;
+  stageDomain: string;
+}
+
+/**
+ * Two-level catalog taxonomy.
+ * - Category  = the website (first path segment under the components root, e.g. `corporate`),
+ *   shown using the friendly label from `categoryLabels` (falls back to a prettified key).
+ * - Sub Category = the value of `subCategoryProperty` on the component when present,
+ *   otherwise the component's AEM `componentGroup`.
+ */
+export interface TaxonomyConfig {
+  categoryLabels: Record<string, string>;
+  subCategoryProperty: string;
+  siteDomains: SiteDomainEntry[];
+}
+
 export interface ComponentLibraryConfig {
+  schemaVersion: 2;
   appId: string;
   brand: BrandConfig;
   components: ComponentsConfig;
@@ -72,6 +160,7 @@ export interface ComponentLibraryConfig {
   output: OutputConfig;
   serviceUser: ServiceUserConfig;
   hero: HeroConfig;
-  /** Detected AEM project type — 'cloud' (AEMaaCS) or 'ams' (AEM 6.x). Auto-detected, user can override. */
-  projectType?: 'cloud' | 'ams';
+  catalog: CatalogRuntimeConfig;
+  governance: GovernanceConfig;
+  taxonomy: TaxonomyConfig;
 }

@@ -1,0 +1,6 @@
+out
+node_modules
+coverage
+releases
+src/templates
+package-lock.json

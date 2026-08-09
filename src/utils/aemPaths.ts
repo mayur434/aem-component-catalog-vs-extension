@@ -1,119 +1,155 @@
-/**
- * Resolve AEM module paths from a detected project structure.
- * Supports both AEMaaCS (cloud) and AEM AMS (6.x) project layouts.
- */
-import * as path from 'path';
+/** Resolve standard AEM as a Cloud Service project locations. */
 import * as fs from 'fs';
-import { ComponentLibraryConfig } from '../config/schema';
+import * as path from 'path';
+import type { ComponentLibraryConfig } from '../config/schema';
+import { assertPathInside } from './pathSecurity';
 
 export interface AemPaths {
   root: string;
   core: string;
   uiApps: string;
-  uiConfig: string | null;
+  uiConfig: string;
   uiContent: string | null;
-  all: string | null;
-
-  /** Whether ui.config module exists (AEMaaCS) */
-  hasUiConfig: boolean;
-  /** Whether ui.content module exists */
-  hasUiContent: boolean;
-
-  /** Java source root for the core bundle */
+  all: string;
   javaSrc: string;
-
-  /** Servlet output path */
   servletFile(config: ComponentLibraryConfig): string;
-
-  /** Page component folder under ui.apps */
   pageComponentDir(config: ComponentLibraryConfig): string;
-
-  /** Clientlib folder under ui.apps */
   clientlibDir(config: ComponentLibraryConfig): string;
-
-  /** OSGi config folder — ui.config for Cloud, ui.apps for AMS */
   osgiConfigDir(config: ComponentLibraryConfig): string;
-
-  /** Content page folder under ui.content (AMS) — null for Cloud (uses RepoInit) */
-  contentDir(config: ComponentLibraryConfig): string;
+  /**
+   * Run-mode-specific sibling of osgiConfigDir (config.stage / config.prod), for OSGi config
+   * that genuinely differs per environment - e.g. SiteDomainService's per-category domains.
+   * Deliberately NOT nested under config.author: confirmed against a real local AEM instance
+   * that the JCR content installer only activates config.author/* on an author-run-mode-only
+   * instance, while correctly leaving config.stage/config.prod present as inactive JCR
+   * content ready for their respective environments.
+   */
+  osgiConfigDirForRunMode(config: ComponentLibraryConfig, runMode: 'stage' | 'prod'): string;
+  oakIndexFile(config: ComponentLibraryConfig): string;
 }
 
 export function resolveAemPaths(projectRoot: string): AemPaths {
-  const core = resolveModule(projectRoot, 'core');
-  const uiApps = resolveModule(projectRoot, 'ui.apps');
-
-  // Optional modules — AMS may not have ui.config, Cloud may not deploy ui.content
-  const uiConfig = resolveModuleOptional(projectRoot, 'ui.config');
-  const uiContent = resolveModuleOptional(projectRoot, 'ui.content');
-  const all = resolveModuleOptional(projectRoot, 'all');
-
-  const hasUiConfig = uiConfig !== null;
-  const hasUiContent = uiContent !== null;
-
-  // Detect java source root from core module
+  const root = fs.realpathSync(projectRoot);
+  const core = requireModule(root, 'core');
+  const uiApps = requireModule(root, 'ui.apps');
+  const uiConfig = requireModule(root, 'ui.config');
+  const all = requireModule(root, 'all');
+  const uiContent = optionalModule(root, 'ui.content');
   const javaSrc = path.join(core, 'src', 'main', 'java');
 
+  const within = (candidate: string): string => assertPathInside(root, candidate, 'Generated output');
+
   return {
-    root: projectRoot,
+    root,
     core,
     uiApps,
     uiConfig,
     uiContent,
     all,
-    hasUiConfig,
-    hasUiContent,
     javaSrc,
-
-    servletFile(config: ComponentLibraryConfig): string {
-      const pkgPath = config.output.servletPackage.replace(/\./g, '/');
-      return path.join(javaSrc, pkgPath, 'ComponentLibraryServlet.java');
-    },
-
-    pageComponentDir(config: ComponentLibraryConfig): string {
-      return path.join(
-        uiApps, 'src', 'main', 'content', 'jcr_root',
-        'apps', config.appId, 'components', 'page', 'componentlibrary'
+    servletFile(config) {
+      return within(
+        path.join(javaSrc, config.output.servletPackage.replace(/\./g, '/'), 'ComponentLibraryServlet.java'),
       );
     },
-
-    clientlibDir(config: ComponentLibraryConfig): string {
-      return path.join(
-        uiApps, 'src', 'main', 'content', 'jcr_root',
-        'apps', config.appId, 'clientlibs', 'clientlib-componentlibrary'
+    pageComponentDir(config) {
+      return within(
+        path.join(
+          uiApps,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'components',
+          'page',
+          'componentlibrary',
+        ),
       );
     },
-
-    osgiConfigDir(config: ComponentLibraryConfig): string {
-      // Prefer ui.config (Cloud), fall back to ui.apps (AMS)
-      const base = uiConfig || uiApps;
-      return path.join(
-        base, 'src', 'main', 'content',
-        'jcr_root', 'apps', config.appId, 'osgiconfig', 'config'
+    clientlibDir(config) {
+      return within(
+        path.join(
+          uiApps,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'clientlibs',
+          'clientlib-componentlibrary',
+        ),
       );
     },
-
-    contentDir(config: ComponentLibraryConfig): string {
-      // For AMS, content page goes into ui.content (which IS deployed)
-      // For Cloud, this path is only used as fallback — RepoInit is preferred
-      const base = uiContent || uiApps;
-      const segments = config.output.contentPath.split('/').filter(Boolean);
-      return path.join(
-        base, 'src', 'main', 'content', 'jcr_root',
-        ...segments
+    osgiConfigDir(config) {
+      // Applies to every run mode (author and publish), not just config.author. The core
+      // bundle itself deploys to both tiers by default (nothing tier-restricts it at the
+      // package level), and ComponentUsageService/the service-user mapping have no run-mode
+      // guard of their own - if this lived under config.author only, the bundle would still
+      // activate on publish but fail every night with a LoginException (no subservice mapping
+      // there). The catalog UI itself still only responds on author: that gate is a runtime
+      // check inside the servlet, unrelated to which OSGi config folder this is.
+      return within(
+        path.join(
+          uiConfig,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'osgiconfig',
+          'config',
+        ),
+      );
+    },
+    osgiConfigDirForRunMode(config, runMode) {
+      return within(
+        path.join(
+          uiConfig,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'osgiconfig',
+          `config.${runMode}`,
+        ),
+      );
+    },
+    oakIndexFile(config) {
+      // ui.apps (the CODE package), NOT ui.content: AEMaaCS requires /oak:index definitions
+      // to ship as code so Cloud Manager installs and reindexes them before the blue-green
+      // switchover, ahead of any mutable content package. FileVault platform-name mangling
+      // maps the namespaced JCR name oak:index to the folder _oak_index.
+      return within(
+        path.join(
+          uiApps,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          '_oak_index',
+          config.catalog.usageIndexName,
+          '.content.xml',
+        ),
       );
     },
   };
 }
 
-function resolveModule(root: string, name: string): string {
-  const dir = path.join(root, name);
-  if (!fs.existsSync(dir)) {
-    throw new Error(`AEM module "${name}" not found at: ${dir}`);
+function requireModule(root: string, name: string): string {
+  const modulePath = path.join(root, name);
+  if (!fs.existsSync(modulePath)) {
+    throw new Error(`Required AEMaaCS module "${name}" not found at ${modulePath}`);
   }
-  return dir;
+  return fs.realpathSync(modulePath);
 }
 
-function resolveModuleOptional(root: string, name: string): string | null {
-  const dir = path.join(root, name);
-  return fs.existsSync(dir) ? dir : null;
+function optionalModule(root: string, name: string): string | null {
+  const modulePath = path.join(root, name);
+  return fs.existsSync(modulePath) ? fs.realpathSync(modulePath) : null;
 }

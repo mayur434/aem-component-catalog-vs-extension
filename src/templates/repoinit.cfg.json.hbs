@@ -1,13 +1,19 @@
 {
     "scripts": [
-        "create service user {{serviceUserName}}",
-        "set ACL for {{serviceUserName}}\n    allow jcr:read on {{componentRoot}}\n    allow jcr:read on /apps/{{appId}}/clientlibs\nend",
+        "create service user {{serviceUserName}} with forced path system/cq:services/{{appId}}",
+        "create path (sling:OrderedFolder) /content",
+        "create path (sling:OrderedFolder) {{assetRoot}}",
+        "set principal ACL for {{serviceUserName}}\n    allow jcr:read on /apps\n    allow jcr:read,rep:write,jcr:versionManagement on {{assetRoot}}\n    allow jcr:read,rep:write on /content/{{appId}}\n    allow jcr:read on /content\nend",
+        "create path (sling:Folder) /conf",
+        "create path (sling:Folder) /conf/{{appId}}",
+        "create path (nt:unstructured) /conf/{{appId}}/settings",
+        "create path (nt:unstructured) /conf/{{appId}}/settings/wcm",
         "create path (nt:unstructured) /conf/{{appId}}/settings/wcm/templates",
         "create path (cq:Template) /conf/{{appId}}/settings/wcm/templates/component-library-page",
         "create path (cq:PageContent) /conf/{{appId}}/settings/wcm/templates/component-library-page/jcr:content",
-        "set properties on /conf/{{appId}}/settings/wcm/templates/component-library-page/jcr:content\n    set jcr:title{String} to \"Component Library Page\"\n    set jcr:description{String} to \"Template for the Component Library page\"\n    set status{String} to enabled\nend",
-        "create path (cq:Page) {{contentPath}}",
-        "create path (cq:PageContent) {{contentPath}}/jcr:content",
-        "set properties on {{contentPath}}/jcr:content\n    set sling:resourceType{String} to {{pageResourceType}}\n    set jcr:title{String} to \"{{pageTitle}}\"\n    set cq:template{String} to /conf/{{appId}}/settings/wcm/templates/component-library-page\n    set cq:designPath{String} to /libs/settings/wcm/designs/default\nend"
+        "set properties on /conf/{{appId}}/settings/wcm/templates/component-library-page/jcr:content\n    set jcr:title{String} to \"Component Library Page\"\n    set jcr:description{String} to \"Internal component catalog\"\n    set status{String} to enabled\nend"{{#each pagePaths}},
+        "create path (cq:Page) {{this.path}}",
+        "create path (cq:PageContent) {{this.path}}/jcr:content"{{#if this.target}},
+        "set properties on {{this.path}}/jcr:content\n    set sling:resourceType{String} to {{../pageResourceType}}\n    set jcr:title{String} to \"{{osgiString ../pageTitle}}\"\n    set cq:template{String} to /conf/{{../appId}}/settings/wcm/templates/component-library-page\nend"{{/if}}{{/each}}
     ]
 }
