@@ -2,12 +2,14 @@ const assert = require('node:assert/strict');
 const vscode = require('vscode');
 
 async function run() {
-  const extension = vscode.extensions.getExtension('pidilite.aem-component-library-generator');
+  const extension = vscode.extensions.getExtension('aem-catalog.aem-component-library-generator');
   assert.ok(extension, 'Extension is installed in the test host.');
   await extension.activate();
   const commands = await vscode.commands.getCommands(true);
   for (const command of [
-    'aemComponentLibrary.openDashboard',
+    'aemComponentLibrary.openCatalog',
+    'aemComponentLibrary.configure',
+    'aemComponentLibrary.audit',
     'aemComponentLibrary.doctor',
     'aemComponentLibrary.generate',
     'aemComponentLibrary.rollback',

@@ -1,12 +1,12 @@
 {
   "extensions": [
     {
-      "id": "pidilite.aem-component-library-generator",
+      "id": "aem-catalog.aem-component-library-generator",
       "name": "aem-component-library-generator",
       "displayName": "AEM Component Catalog Enterprise",
       "description": "Enterprise AEMaaCS component discovery, governance, Cloud Doctor validation, and transactional catalog generation.",
       "version": "2.0.0",
-      "publisher": "pidilite",
+      "publisher": "aem-catalog",
       "vsixPath": "releases/aem-component-library-generator-2.0.0.vsix",
       "categories": ["AEMaaCS", "Linters", "Development Tools"],
       "lastUpdated": "2026-07-22T00:00:00Z"

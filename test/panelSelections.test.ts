@@ -77,4 +77,77 @@ describe('config-panel selections merge (not clobber) the existing config', () =
     expect(selections.primary).toBe('#abcdef');
     expect(selections.title).toBe('Existing Title');
   });
+
+  it('round-trips taxonomy.siteDomains through the panel like categoryLabels', () => {
+    fixture = createAemCloudFixture();
+    const project = { artifactId: 'sample-site', root: fixture.root, javaPackage: 'com.example.core' };
+
+    const before = loadConfig(fixture.root);
+    before.taxonomy.siteDomains = [
+      { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: '' },
+    ];
+    saveConfig(fixture.root, before);
+
+    const selections = currentSelections({ root: fixture.root, artifactId: 'sample-site' });
+    expect(selections.siteDomains).toEqual([
+      { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: '' },
+    ]);
+
+    const message = {
+      brandName: 'Acme',
+      primary: '#112233',
+      accent: '#445566',
+      background: '#ffffff',
+      title: 'Acme Catalog',
+      description: 'Acme components',
+      subCategoryProperty: 'catalogSubCategory',
+      features: {},
+      siteDomains: [
+        { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: 'https://stage.example.com' },
+        { category: 'corporate', prodDomain: '', stageDomain: '' },
+      ],
+    };
+    const after = applySelections(project, message);
+    expect(after.taxonomy.siteDomains).toEqual([
+      { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: 'https://stage.example.com' },
+      { category: 'corporate', prodDomain: '', stageDomain: '' },
+    ]);
+  });
+
+  it('pre-seeds one site-domain row per known category when none is saved yet', () => {
+    fixture = createAemCloudFixture();
+    const before = loadConfig(fixture.root);
+    before.taxonomy.categoryLabels = { haisha: 'Haisha Paints', corporate: 'Corporate' };
+    saveConfig(fixture.root, before);
+
+    const selections = currentSelections({ root: fixture.root, artifactId: 'sample-site' });
+    expect(selections.siteDomains).toEqual([
+      { category: 'haisha', prodDomain: '', stageDomain: '' },
+      { category: 'corporate', prodDomain: '', stageDomain: '' },
+    ]);
+  });
+
+  it('sanitizes site-domain rows: drops unsafe/duplicate categories, blanks malformed domains', () => {
+    fixture = createAemCloudFixture();
+    const project = { artifactId: 'sample-site', root: fixture.root, javaPackage: 'com.example.core' };
+    const message = {
+      brandName: '',
+      primary: '',
+      accent: '',
+      background: '',
+      title: '',
+      description: '',
+      subCategoryProperty: '',
+      features: {},
+      siteDomains: [
+        { category: 'campaign', prodDomain: 'not-a-url', stageDomain: 'https://stage.example.com' },
+        { category: 'bad category!', prodDomain: 'https://x.example.com', stageDomain: '' },
+        { category: 'campaign', prodDomain: '', stageDomain: '' }, // duplicate category, dropped
+      ],
+    };
+    const after = applySelections(project, message);
+    expect(after.taxonomy.siteDomains).toEqual([
+      { category: 'campaign', prodDomain: '', stageDomain: 'https://stage.example.com' },
+    ]);
+  });
 });

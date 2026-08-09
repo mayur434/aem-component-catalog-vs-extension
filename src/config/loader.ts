@@ -190,6 +190,25 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
         errors.push(`taxonomy.categoryLabels["${key}"] must be a safe label`);
       }
     }
+    // A blank prodDomain/stageDomain is a valid, expected state ("not configured yet, keep
+    // the old relative-link behaviour") - not an error. Only a non-empty value that isn't a
+    // well-formed http(s) URL is rejected, and neither domain is required to be filled in.
+    const domainPattern = /^https?:\/\/.+/;
+    for (const entry of config.taxonomy.siteDomains ?? []) {
+      if (!/^[a-zA-Z0-9._-]+$/.test(entry.category)) {
+        errors.push(`taxonomy.siteDomains category "${entry.category}" must be a safe folder segment`);
+      }
+      if (entry.prodDomain && !domainPattern.test(entry.prodDomain)) {
+        errors.push(
+          `taxonomy.siteDomains["${entry.category}"].prodDomain must start with http:// or https://, or be empty`,
+        );
+      }
+      if (entry.stageDomain && !domainPattern.test(entry.stageDomain)) {
+        errors.push(
+          `taxonomy.siteDomains["${entry.category}"].stageDomain must start with http:// or https://, or be empty`,
+        );
+      }
+    }
   }
   if (
     !Number.isInteger(config.catalog.cacheSeconds) ||

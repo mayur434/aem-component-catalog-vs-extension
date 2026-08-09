@@ -4,6 +4,7 @@ import * as path from 'path';
 import { XMLParser } from 'fast-xml-parser';
 import type { ComponentLibraryConfig } from '../config/schema';
 import { assessComponentQuality, type QualityAssessment } from '../core/quality';
+import { getAemAdapter } from './platformAdapter';
 
 export interface ScannedComponent {
   name: string;
@@ -51,10 +52,20 @@ export interface ScanResult {
   averageQualityScore: number;
 }
 
+function resolveComponentsDir(projectRoot: string, config: ComponentLibraryConfig): string | null {
+  for (const jcrRootRelative of getAemAdapter().componentRoots) {
+    const jcrRoot = path.join(projectRoot, jcrRootRelative);
+    const componentsDir = path.join(jcrRoot, ...config.components.root.split('/').filter(Boolean));
+    if (fs.existsSync(componentsDir)) {
+      return componentsDir;
+    }
+  }
+  return null;
+}
+
 export function scanComponents(projectRoot: string, config: ComponentLibraryConfig): ScanResult {
-  const jcrRoot = path.join(projectRoot, 'ui.apps', 'src', 'main', 'content', 'jcr_root');
-  const componentsDir = path.join(jcrRoot, ...config.components.root.split('/').filter(Boolean));
-  if (!fs.existsSync(componentsDir)) {
+  const componentsDir = resolveComponentsDir(projectRoot, config);
+  if (!componentsDir) {
     return { total: 0, groups: {}, components: [], averageQualityScore: 0 };
   }
 
@@ -193,29 +204,31 @@ function collectDialogFields(node: unknown, fields: DialogField[]): void {
 
 function buildModelIndex(projectRoot: string): Map<string, { className: string; exporter: boolean }> {
   const result = new Map<string, { className: string; exporter: boolean }>();
-  const javaRoot = path.join(projectRoot, 'core', 'src', 'main', 'java');
-  if (!fs.existsSync(javaRoot)) return result;
-  walkFiles(javaRoot, (file) => {
-    if (!file.endsWith('.java')) return;
-    const source = fs.readFileSync(file, 'utf-8');
-    const modelBlock = source.match(/@Model\s*\(([\s\S]{0,1200}?)\)([\s\S]{0,600}?)\bclass\s+(\w+)/);
-    if (!modelBlock) return;
-    const resourceTypes = [
-      ...modelBlock[1].matchAll(/["']([a-zA-Z0-9/_-]+\/components\/[a-zA-Z0-9/_-]+)["']/g),
-    ];
-    const packageName = source.match(/^package\s+([\w.]+);/m)?.[1];
-    const className = packageName ? `${packageName}.${modelBlock[3]}` : modelBlock[3];
-    for (const match of resourceTypes) {
-      result.set(match[1], { className, exporter: /@Exporter\s*\(/.test(source) });
-    }
-  });
+  for (const javaRootRelative of getAemAdapter().modelRoots) {
+    const javaRoot = path.join(projectRoot, javaRootRelative);
+    if (!fs.existsSync(javaRoot)) continue;
+    walkFiles(javaRoot, (file) => {
+      if (!file.endsWith('.java')) return;
+      const source = fs.readFileSync(file, 'utf-8');
+      const modelBlock = source.match(/@Model\s*\(([\s\S]{0,1200}?)\)([\s\S]{0,600}?)\bclass\s+(\w+)/);
+      if (!modelBlock) return;
+      const resourceTypes = [
+        ...modelBlock[1].matchAll(/["']([a-zA-Z0-9/_-]+\/components\/[a-zA-Z0-9/_-]+)["']/g),
+      ];
+      const packageName = source.match(/^package\s+([\w.]+);/m)?.[1];
+      const className = packageName ? `${packageName}.${modelBlock[3]}` : modelBlock[3];
+      for (const match of resourceTypes) {
+        result.set(match[1], { className, exporter: /@Exporter\s*\(/.test(source) });
+      }
+    });
+  }
   return result;
 }
 
 function buildUsageIndex(projectRoot: string): Map<string, number> {
   const result = new Map<string, number>();
-  for (const module of ['ui.content', 'ui.apps']) {
-    const root = path.join(projectRoot, module, 'src', 'main', 'content', 'jcr_root');
+  for (const jcrRootRelative of getAemAdapter().usageRoots) {
+    const root = path.join(projectRoot, jcrRootRelative);
     if (!fs.existsSync(root)) continue;
     walkFiles(root, (file) => {
       if (!file.endsWith('.xml')) return;

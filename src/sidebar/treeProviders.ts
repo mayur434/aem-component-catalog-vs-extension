@@ -1,5 +1,9 @@
 /**
  * Sidebar tree data providers for the AEM Component Library activity bar.
+ *
+ * The sidebar is pure navigation (Projects, Components) — actions live in the
+ * unified Catalog panel and in right-click context menus on project rows, not
+ * as a separate flat action list.
  */
 import * as vscode from 'vscode';
 import type { ProjectInfo } from '../scanner/projectDetector';
@@ -7,48 +11,6 @@ import { scanComponents, type ScannedComponent, type ScanResult } from '../scann
 import { configExists, loadConfig } from '../config/loader';
 import { getDefaults } from '../config/defaults';
 import { discoverWorkspaceProjects } from '../commands/projectSelection';
-
-// ─── Actions Tree ────────────────────────────────────────────────
-
-type ActionTreeItem = ActionItem | SeparatorItem;
-
-export class ActionsProvider implements vscode.TreeDataProvider<ActionTreeItem> {
-  getTreeItem(element: ActionTreeItem): vscode.TreeItem {
-    return element;
-  }
-
-  getChildren(): ActionTreeItem[] {
-    return [
-      new ActionItem('Configure & Generate Micro-site', 'aemComponentLibrary.configure', '$(rocket)', 'Open the configuration panel and generate catalog pages'),
-      new ActionItem('Generate (no prompts)', 'aemComponentLibrary.generate', '$(play)', 'Re-generate catalog using existing configuration'),
-      new ActionItem('Deploy to Local AEM', 'aemComponentLibrary.deployLocal', '$(cloud-upload)', 'Build and deploy ui.apps, core, ui.config to local AEM'),
-      new ActionItem('Preview Changes', 'aemComponentLibrary.preview', '$(eye)', 'Show a dry-run of what will be generated'),
-      new ActionItem('Roll Back Last Generation', 'aemComponentLibrary.rollback', '$(history)', 'Undo the most recent catalog generation'),
-      new SeparatorItem('Tech Audit'),
-      new ActionItem('Run Component Audit', 'aemComponentLibrary.audit', '$(checklist)', 'Classify components, detect duplicates, and analyse usage'),
-    ];
-  }
-}
-
-class ActionItem extends vscode.TreeItem {
-  constructor(label: string, commandId: string, icon: string, tooltip?: string) {
-    super(label, vscode.TreeItemCollapsibleState.None);
-    this.command = { command: commandId, title: label };
-    this.iconPath = new vscode.ThemeIcon(icon.replace('$(', '').replace(')', ''));
-    if (tooltip) {
-      this.tooltip = tooltip;
-    }
-  }
-}
-
-class SeparatorItem extends vscode.TreeItem {
-  constructor(label: string) {
-    super(`── ${label} ──`, vscode.TreeItemCollapsibleState.None);
-    this.description = '';
-    this.iconPath = new vscode.ThemeIcon('dash');
-    this.contextValue = 'separator';
-  }
-}
 
 // ─── Projects Tree ───────────────────────────────────────────────
 
@@ -69,13 +31,15 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
       return element.children || [];
     }
 
+    // Empty array (rather than a placeholder item) lets the aemCL.projects
+    // viewsWelcome content show instead — the standard VS Code empty-state pattern.
     if (!vscode.workspace.workspaceFolders?.length) {
-      return [new ProjectItem('No workspace open', '', 'warning')];
+      return [];
     }
 
     const projects = discoverWorkspaceProjects();
     if (projects.length === 0) {
-      return [new ProjectItem('No AEM projects found', '', 'warning')];
+      return [];
     }
 
     return projects.map((p) => {
@@ -83,7 +47,7 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
       const platformLabel = p.platform === 'aemaacs' ? 'AEMaaCS' : 'AEM AMS';
       const item = new ProjectItem(p.artifactId, p.root, hasConfig ? 'pass' : 'circle-large-outline');
       item.description = `${platformLabel} · ${hasConfig ? 'configured' : 'not configured'}`;
-      item.tooltip = `${p.groupId}:${p.artifactId}:${p.version}\nPlatform: ${platformLabel}\n${p.root}\nModules: ${p.modules.join(', ')}`;
+      item.tooltip = `${p.groupId}:${p.artifactId}:${p.version}\nPlatform: ${platformLabel}\n${p.root}\nModules: ${p.modules.join(', ')}\n\nRight-click for actions, or use the toolbar button to open the Catalog panel.`;
       item.children = [
         new ProjectItem(`Platform: ${platformLabel}`, '', 'vm'),
         new ProjectItem(`Group: ${p.groupId}`, '', 'tag'),
@@ -93,11 +57,7 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
         new ProjectItem(`Config: ${hasConfig ? '✓' : '—'}`, '', hasConfig ? 'check' : 'dash'),
       ];
       item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
-
-      if (hasConfig) {
-        item.contextValue = 'configuredProject';
-      }
-
+      item.contextValue = 'project';
       return item;
     });
   }
@@ -105,12 +65,15 @@ export class ProjectsProvider implements vscode.TreeDataProvider<ProjectItem> {
 
 class ProjectItem extends vscode.TreeItem {
   children?: ProjectItem[];
+  /** The project's root path, when this item represents a real project row (not a metadata child). Read by extension.ts's context-menu command wrappers. */
+  projectRoot?: string;
 
   constructor(label: string, detail: string, icon: string) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.iconPath = new vscode.ThemeIcon(icon);
     if (detail) {
       this.resourceUri = vscode.Uri.file(detail);
+      this.projectRoot = detail;
     }
   }
 }

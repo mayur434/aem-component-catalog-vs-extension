@@ -14,8 +14,15 @@ export function parseContentPackages(packagePaths: string[]): ContentPackagePars
 
   for (const pkgPath of packagePaths) {
     if (!fs.existsSync(pkgPath)) continue;
-    const stat = fs.statSync(pkgPath);
-    if (stat.isDirectory()) {
+    let stat: fs.Stats;
+    let isDirectory: boolean;
+    try {
+      stat = fs.statSync(pkgPath);
+      isDirectory = stat.isDirectory();
+    } catch {
+      continue;
+    }
+    if (isDirectory) {
       const zips = fs.readdirSync(pkgPath)
         .filter((f) => f.endsWith('.zip'))
         .map((f) => path.join(pkgPath, f));
@@ -45,7 +52,14 @@ function parseOnePackage(zipPath: string, usage: Map<string, UsageRecord>, siteP
     return;
   }
 
-  for (const entry of zip.getEntries()) {
+  let entries: ReturnType<typeof zip.getEntries>;
+  try {
+    entries = zip.getEntries();
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
     if (!entry.entryName.endsWith('.content.xml') && !entry.entryName.endsWith('.xml')) {
       continue;
     }

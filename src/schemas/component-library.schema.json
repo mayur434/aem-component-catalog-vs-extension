@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pidilite.example/schemas/aem-component-catalog-v2.json",
+  "$id": "https://aem-catalog.example/schemas/aem-component-catalog-v2.json",
   "title": "AEMaaCS Enterprise Component Catalog Configuration",
   "type": "object",
   "additionalProperties": false,

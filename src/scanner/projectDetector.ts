@@ -2,6 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { XMLParser } from 'fast-xml-parser';
+import { getAemAdapter } from './platformAdapter';
 
 export type AemPlatform = 'aemaacs' | 'ams';
 
@@ -169,12 +170,20 @@ function detectJavaVersion(pomXml: string): string {
 }
 
 function detectJavaPackage(projectRoot: string, artifactId: string, groupId: string): string {
-  const coreJava = path.join(projectRoot, 'core', 'src', 'main', 'java');
-  const discovered = fs.existsSync(coreJava) ? walkForPackage(coreJava) : null;
+  let discovered: string | null = null;
+  for (const javaRootRelative of getAemAdapter().modelRoots) {
+    const moduleJava = path.join(projectRoot, javaRootRelative);
+    if (fs.existsSync(moduleJava)) {
+      discovered = walkForPackage(moduleJava);
+      if (discovered) {
+        break;
+      }
+    }
+  }
   if (discovered) {
     const parts = discovered.split('.');
-    const coreIndex = parts.indexOf('core');
-    const base = coreIndex >= 0 ? parts.slice(0, coreIndex + 1).join('.') : discovered;
+    const anchorIndex = Math.max(parts.indexOf('core'), parts.indexOf('bundle'));
+    const base = anchorIndex >= 0 ? parts.slice(0, anchorIndex + 1).join('.') : discovered;
     return base.endsWith('.servlets') ? base : `${base}.servlets`;
   }
   return groupId

@@ -23,7 +23,7 @@ export function doctorReportToSarif(report: DoctorReport): SarifLog {
           driver: {
             name: 'AEM Component Catalog Cloud Doctor',
             semanticVersion: '2.0.0',
-            informationUri: 'https://github.com/pidilite/aem-component-catalog-vs-extension',
+            informationUri: 'https://github.com/mayur434/aem-component-catalog-vs-extension',
             rules,
           },
         },

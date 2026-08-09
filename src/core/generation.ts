@@ -6,9 +6,10 @@ import type { GeneratedArtifact } from './artifact';
 import { planClientlib } from '../generators/clientlibGenerator';
 import { planDispatcher } from '../generators/dispatcherGenerator';
 import { planOakIndex } from '../generators/oakIndexGenerator';
-import { planOsgiConfigs } from '../generators/osgiConfigGenerator';
+import { planOsgiConfigs, planSiteDomainOsgiConfigs } from '../generators/osgiConfigGenerator';
 import { planPageComponent } from '../generators/pageComponentGenerator';
 import { planServlet } from '../generators/servletGenerator';
+import { planSiteDomainService } from '../generators/siteDomainServiceGenerator';
 import { resolveAemPaths } from '../utils/aemPaths';
 import { hashContent, hashFile } from '../utils/fileOps';
 import {
@@ -90,6 +91,8 @@ export function buildGenerationPlan(projectRoot: string, config: ComponentLibrar
     ...planPageComponent(config, paths),
     ...planClientlib(config, paths),
     ...planOsgiConfigs(config, paths),
+    ...planSiteDomainService(config, paths),
+    ...planSiteDomainOsgiConfigs(config, paths),
     ...planOakIndex(config, paths),
     ...planDispatcher(config, paths),
   ];

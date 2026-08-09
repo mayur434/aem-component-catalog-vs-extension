@@ -135,6 +135,10 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
     taxonomy: {
       categoryLabels: {},
       subCategoryProperty: 'catalogSubCategory',
+      // Empty by default: cross-domain "where it's used" links are opt-in. An unconfigured
+      // category (or a project that never touches this at all) keeps the old relative-link
+      // behaviour, which is always safe - see SiteDomainEntry's doc comment in schema.ts.
+      siteDomains: [],
     },
   };
 }

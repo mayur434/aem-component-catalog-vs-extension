@@ -3,6 +3,7 @@ import type { ComponentLibraryConfig } from '../config/schema';
 import type { GeneratedArtifact } from '../core/artifact';
 import type { AemPaths } from '../utils/aemPaths';
 import { renderTemplate } from '../utils/templateEngine';
+import { uniqueSiteDomainCategories } from './siteDomainServiceGenerator';
 
 export function planOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths): GeneratedArtifact[] {
   const directory = paths.osgiConfigDir(config);
@@ -37,6 +38,45 @@ export function planOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths)
         `org.apache.sling.jcr.repoinit.RepositoryInitializer~${config.appId}.cfg.json`,
       ),
       content: repoinit,
+      kind: 'osgi',
+    },
+  ];
+}
+
+/**
+ * SiteDomainService's per-environment domain values, written into config.stage/config.prod
+ * (never config.author - see osgiConfigDirForRunMode's doc comment). Skipped entirely, with
+ * no artifacts at all, when the project has no site-domain entries configured: this feature
+ * is opt-in, and an empty result here means the Java class isn't generated either (see
+ * planSiteDomainService), so there is nothing for this config to configure.
+ */
+export function planSiteDomainOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths): GeneratedArtifact[] {
+  const categories = uniqueSiteDomainCategories(config);
+  if (categories.length === 0) return [];
+
+  const byCategory = new Map(config.taxonomy.siteDomains.map((entry) => [entry.category, entry]));
+  const entriesFor = (runMode: 'stage' | 'prod'): string[] =>
+    categories.map((category) => {
+      const entry = byCategory.get(category);
+      const domain = (runMode === 'prod' ? entry?.prodDomain : entry?.stageDomain) ?? '';
+      return `${category}=${domain}`;
+    });
+
+  // PID equals the fully-qualified class name of the generated SiteDomainService, in the
+  // same package resolution the other generated servlets/services use - a normal
+  // @Designate-based singleton config, not the "~{appId}" amended factory-config suffix
+  // style used by the two configs above (those are Sling factory configs; this is not).
+  const fileName = `${config.output.servletPackage}.SiteDomainService.cfg.json`;
+
+  return [
+    {
+      absolutePath: path.join(paths.osgiConfigDirForRunMode(config, 'prod'), fileName),
+      content: renderTemplate('siteDomainService.cfg.json.hbs', { siteDomains: entriesFor('prod') }),
+      kind: 'osgi',
+    },
+    {
+      absolutePath: path.join(paths.osgiConfigDirForRunMode(config, 'stage'), fileName),
+      content: renderTemplate('siteDomainService.cfg.json.hbs', { siteDomains: entriesFor('stage') }),
       kind: 'osgi',
     },
   ];

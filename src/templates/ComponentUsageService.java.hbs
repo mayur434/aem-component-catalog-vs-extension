@@ -61,6 +61,11 @@ public final class ComponentUsageService implements Runnable {
     @Reference
     private transient SlingSettingsService slingSettings;
 
+{{#if hasSiteDomains}}
+    @Reference
+    private transient SiteDomainService siteDomainService;
+
+{{/if}}
     private volatile Map<String, List<Map<String, String>>> usageByComponent = Collections.emptyMap();
     private volatile long builtAt = 0L;
 
@@ -295,6 +300,12 @@ public final class ComponentUsageService implements Runnable {
             title = content.getValueMap().get("jcr:title", title);
         }
         info.put("title", title);
+{{#if hasSiteDomains}}
+        String url = siteDomainService.resolveUrl(page.getPath());
+        if (url != null) {
+            info.put("url", url);
+        }
+{{/if}}
         return info;
     }
 

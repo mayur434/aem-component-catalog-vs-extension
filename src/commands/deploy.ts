@@ -1,21 +1,26 @@
 /**
  * Deploy the immutable code to a LOCAL AEM instance.
  *
- * STRICT SCOPE: only `core`, `ui.apps`, and `ui.config` are ever deployed —
- * never `ui.content`. `-am` builds their upstream build dependencies (e.g.
- * ui.apps.structure) but never `ui.content`, which is not an upstream dependency
- * of any of these three, so authored /content and /conf are never touched.
+ * STRICT SCOPE: only `core`, `bundle`, `ui.apps`, and `ui.config` are ever
+ * deployed — `bundle` is AMS's equivalent of the core Java module. `ui.content`
+ * is NEVER deployed, on either platform. `-am` builds their upstream build
+ * dependencies (e.g. ui.apps.structure) but never `ui.content`, which is not an
+ * upstream dependency of any of these modules, so authored /content and /conf
+ * are never touched.
  */
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { requireTrustedWorkspace, selectAemCloudProject } from './projectSelection';
+import { requireTrustedWorkspace, selectAemProject } from './projectSelection';
+import { getAemAdapter } from '../scanner/platformAdapter';
 
-const DEPLOY_MODULES = ['core', 'ui.apps', 'ui.config'];
+// Sourced from the platform adapter's safety-reviewed deployableModules allowlist
+// (see platformAdapter.ts) — never includes ui.content or any authored-content module.
+const DEPLOY_MODULES = getAemAdapter().deployableModules;
 
 export async function deployLocalCommand(requestedRoot?: string): Promise<void> {
   if (!requireTrustedWorkspace('Deploy to local AEM')) return;
-  const project = await selectAemCloudProject(requestedRoot, 'Select the project to deploy to local AEM');
+  const project = await selectAemProject(requestedRoot, 'Select the project to deploy to local AEM');
   if (!project) return;
   await deployLocal(project.root);
 }
@@ -23,7 +28,7 @@ export async function deployLocalCommand(requestedRoot?: string): Promise<void> 
 export async function deployLocal(projectRoot: string): Promise<void> {
   const modules = DEPLOY_MODULES.filter((module) => fs.existsSync(path.join(projectRoot, module)));
   if (!modules.length) {
-    vscode.window.showErrorMessage('None of core, ui.apps, ui.config were found in this project.');
+    vscode.window.showErrorMessage(`None of ${DEPLOY_MODULES.join(', ')} were found in this project.`);
     return;
   }
   const { host, port } = readAemTarget(projectRoot);
@@ -44,10 +49,11 @@ export async function deployLocal(projectRoot: string): Promise<void> {
     '-am',
     '-PautoInstallPackage,autoInstallBundle',
   ];
+  const taskName = `Deploy ${modules.join(', ')}`;
   const task = new vscode.Task(
     { type: 'aem-deploy' },
     vscode.TaskScope.Workspace,
-    'Deploy core, ui.apps, ui.config',
+    taskName,
     'AEM Component Catalog',
     new vscode.ShellExecution(mvn, args, { cwd: projectRoot }),
   );
@@ -75,7 +81,7 @@ export async function deployLocal(projectRoot: string): Promise<void> {
       vscode.window.showInformationMessage(`✓ Deployed ${modules.join(', ')} to local AEM · ui.content excluded.`);
     } else {
       vscode.window.showErrorMessage(
-        `✗ Local deploy failed (exit ${event.exitCode ?? 'unknown'}). See the "Deploy core, ui.apps, ui.config" terminal for details.`,
+        `✗ Local deploy failed (exit ${event.exitCode ?? 'unknown'}). See the "${taskName}" terminal for details.`,
       );
     }
   });

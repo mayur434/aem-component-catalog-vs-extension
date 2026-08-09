@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { XMLParser } from 'fast-xml-parser';
 import type { ProjectInfo } from '../scanner/projectDetector';
+import { getPlatformAdapter } from '../scanner/platformAdapter';
 import { buildSuperTypeChain, resolveClassification } from './componentClassifier';
 import { parseContentPackages } from './contentPackageParser';
 import { detectDuplicates, hashComponentFiles } from './duplicateDetector';
@@ -103,7 +104,7 @@ function scanProjectComponents(
 ): AuditComponent[] {
   const components: AuditComponent[] = [];
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
-  const modelIndex = buildModelIndex(project.root);
+  const modelIndex = buildModelIndex(project);
 
   const appsRoots = findAppsRoots(project);
   for (const appsRoot of appsRoots) {
@@ -119,8 +120,17 @@ function scanProjectComponents(
 
 function findAppsRoots(project: ProjectInfo): string[] {
   const roots: string[] = [];
-  for (const moduleName of ['ui.apps', 'content', ...project.modules]) {
-    const jcrRoot = path.join(project.root, moduleName, 'src', 'main', 'content', 'jcr_root', 'apps');
+  const adapter = getPlatformAdapter(project.platform);
+  const candidates = [
+    ...adapter.componentRoots.map((jcrRootRelative) => path.join(project.root, jcrRootRelative, 'apps')),
+    // A project's own declared Maven modules are a per-project fallback the
+    // platform adapter can't know about — kept local rather than folded into
+    // the adapter's platform-wide candidate list.
+    ...project.modules.map((moduleName) =>
+      path.join(project.root, moduleName, 'src', 'main', 'content', 'jcr_root', 'apps'),
+    ),
+  ];
+  for (const jcrRoot of candidates) {
     if (fs.existsSync(jcrRoot)) {
       roots.push(jcrRoot);
     }
@@ -232,10 +242,10 @@ function walkComponentTree(
   }
 }
 
-function buildModelIndex(projectRoot: string): Map<string, { className: string }> {
+function buildModelIndex(project: ProjectInfo): Map<string, { className: string }> {
   const result = new Map<string, { className: string }>();
-  for (const moduleName of ['core', 'bundle']) {
-    const javaRoot = path.join(projectRoot, moduleName, 'src', 'main', 'java');
+  for (const javaRootRelative of getPlatformAdapter(project.platform).modelRoots) {
+    const javaRoot = path.join(project.root, javaRootRelative);
     if (!fs.existsSync(javaRoot)) continue;
     walkFiles(javaRoot, (file) => {
       if (!file.endsWith('.java')) return;
@@ -263,8 +273,8 @@ function buildModelIndex(projectRoot: string): Map<string, { className: string }
 function buildLocalUsageIndex(projects: ProjectInfo[]): Map<string, UsageRecord> {
   const usage = new Map<string, UsageRecord>();
   for (const project of projects) {
-    for (const moduleName of ['ui.content', 'ui.apps', 'content']) {
-      const root = path.join(project.root, moduleName, 'src', 'main', 'content', 'jcr_root');
+    for (const jcrRootRelative of getPlatformAdapter(project.platform).usageRoots) {
+      const root = path.join(project.root, jcrRootRelative);
       if (!fs.existsSync(root)) continue;
       walkFiles(root, (file) => {
         if (!file.endsWith('.xml')) return;

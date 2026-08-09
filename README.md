@@ -1,13 +1,13 @@
 # AEM Component Catalog
 
-Configure, generate, and deploy a browsable component showcase for **Adobe Experience Manager as a Cloud Service (AEMaaCS) only**. Component discovery, governance, and safe generation tooling are available as advanced/optional features.
+Configure, generate, and deploy a browsable component showcase for **Adobe Experience Manager as a Cloud Service (AEMaaCS) and AEM as a Managed Service (AMS)**. Component discovery, governance, and safe generation tooling are available as advanced/optional features.
 
 The project includes both a VS Code extension and the `aem-catalog` headless CLI. They use the same validation, policy, planning, and transaction engine, so local development and CI produce the same result.
 
 ## Enterprise capabilities
 
-- AEMaaCS-only project detection and package-boundary validation
-- AEM Cloud Doctor with organization policy packs and SARIF output
+- AEMaaCS and AEM AMS project detection, with AEMaaCS-specific package-boundary validation
+- AEM Cloud Doctor (AEMaaCS-specific) with organization policy packs and SARIF output
 - Recursive component inventory with dialog fields, Sling Models, exporters, usages, dependencies, owners, versions, tags, and lifecycle status
 - Explainable component quality score
 - Complete generation plans with per-file diffs and conflict detection
@@ -24,18 +24,19 @@ The project includes both a VS Code extension and the `aem-catalog` headless CLI
 
 - VS Code 1.100+
 - Node.js 20+ for source development or CLI use
-- An AEMaaCS Maven reactor based on the current AEM Project Archetype
-- Required modules: `core`, `ui.apps`, `ui.config`, and `all`
-- the current archetype `dispatcher` module (and legacy `dispatcher.cloud` name) is supported
+- An AEMaaCS or AEM AMS Maven reactor
+- AEMaaCS: `core`, `ui.apps`, `ui.config`, `all`, plus Cloud SDK/Analyser markers; the current archetype `dispatcher` module (and legacy `dispatcher.cloud` name) is supported
+- AMS: an `uber-jar`/`cq-quickstart` dependency with a Java module (`core` or `bundle`) and a content module (`ui.apps` or `content`)
 
-AEM 6.5, Adobe Managed Services, and on-premise projects are intentionally unsupported.
+AEM 6.5 and on-premise (non-Cloud, non-AMS) projects are intentionally unsupported. AEM Cloud Doctor's governance checks are AEMaaCS-specific.
 
 ## Quick start in VS Code
 
-1. Open the AEMaaCS reactor or a workspace containing one or more reactors.
-2. Run **AEM Component Catalog: Configure & Generate Micro-site** (or open it from the status bar dashboard). It writes sensible defaults on first run — nothing to hand-edit.
+1. Open the AEMaaCS or AEM AMS reactor, or a workspace containing one or more reactors.
+2. Run **AEM Component Catalog: Configure & Generate Micro-site** (or open the Catalog panel from the status bar / sidebar). It writes sensible defaults on first run — nothing to hand-edit.
 3. Deploy to local AEM from the same panel, then open the generated catalog page on Author.
-4. (Advanced, optional) Add governance metadata to component definitions and run **AEM Component Catalog: (Advanced) Run AEM Cloud Doctor** for a portfolio-wide health check — this never blocks generation.
+4. (AEMaaCS, advanced, optional) Add governance metadata to component definitions and run **AEM Component Catalog: (Advanced) Run AEM Cloud Doctor** for a portfolio-wide health check — this never blocks generation.
+5. Use the **Audit** tab in the Catalog panel for a cross-project tech audit (classification, duplicates, usage, Excel export) across both platforms.
 
 Generation is disabled in an untrusted workspace. The extension never silently overwrites manually changed files.
 

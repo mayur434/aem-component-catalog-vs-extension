@@ -1,12 +1,5 @@
 import ExcelJS from 'exceljs';
-import type {
-  AuditComponent,
-  AuditRecommendation,
-  AuditResult,
-  CrossSiteEntry,
-  DuplicateMatch,
-  UsageCoverage,
-} from './types';
+import type { AuditResult, DuplicateMatch } from './types';
 
 // ─── DEPT Brand — Black & White ─────────────────────────────────
 const BRAND = {

@@ -16,6 +16,15 @@ export interface AemPaths {
   pageComponentDir(config: ComponentLibraryConfig): string;
   clientlibDir(config: ComponentLibraryConfig): string;
   osgiConfigDir(config: ComponentLibraryConfig): string;
+  /**
+   * Run-mode-specific sibling of osgiConfigDir (config.stage / config.prod), for OSGi config
+   * that genuinely differs per environment - e.g. SiteDomainService's per-category domains.
+   * Deliberately NOT nested under config.author: confirmed against a real local AEM instance
+   * that the JCR content installer only activates config.author/* on an author-run-mode-only
+   * instance, while correctly leaving config.stage/config.prod present as inactive JCR
+   * content ready for their respective environments.
+   */
+  osgiConfigDirForRunMode(config: ComponentLibraryConfig, runMode: 'stage' | 'prod'): string;
   oakIndexFile(config: ComponentLibraryConfig): string;
 }
 
@@ -93,6 +102,21 @@ export function resolveAemPaths(projectRoot: string): AemPaths {
           config.appId,
           'osgiconfig',
           'config',
+        ),
+      );
+    },
+    osgiConfigDirForRunMode(config, runMode) {
+      return within(
+        path.join(
+          uiConfig,
+          'src',
+          'main',
+          'content',
+          'jcr_root',
+          'apps',
+          config.appId,
+          'osgiconfig',
+          `config.${runMode}`,
         ),
       );
     },

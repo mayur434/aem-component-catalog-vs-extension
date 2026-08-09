@@ -6,7 +6,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/core/**/*.ts', 'src/config/**/*.ts', 'src/scanner/**/*.ts', 'src/utils/**/*.ts'],
+      include: [
+        'src/core/**/*.ts',
+        'src/config/**/*.ts',
+        'src/scanner/**/*.ts',
+        'src/utils/**/*.ts',
+        'src/webview/**/*.ts',
+      ],
       thresholds: {
         lines: 75,
         functions: 75,

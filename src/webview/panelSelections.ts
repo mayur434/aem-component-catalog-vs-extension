@@ -1,11 +1,11 @@
 /**
  * Pure (no `vscode` dependency) config <-> panel-selections translation for the
- * "Configure & Generate" webview. Kept separate from configPanel.ts specifically so it
- * can be unit tested without mocking the `vscode` module.
+ * Catalog panel's Configure tab. Kept separate from catalogTabs/configureTab.ts
+ * specifically so it can be unit tested without mocking the `vscode` module.
  */
 import { configExists, loadConfig } from '../config/loader';
 import { getDefaults } from '../config/defaults';
-import type { ComponentLibraryConfig } from '../config/schema';
+import type { ComponentLibraryConfig, SiteDomainEntry } from '../config/schema';
 
 export const TITLE_PRESETS = ['Component Catalog', 'Design System', 'Component Library', 'UI Library', 'Pattern Library'];
 export const PRIMARY_SWATCHES = ['#03438E', '#0A66C2', '#005289', '#1D6B3F', '#7A1F2B', '#452B6D', '#00767B', '#1E1E1E'];
@@ -35,6 +35,10 @@ export const FEATURES: Array<{
 ];
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const JCR_PROPERTY = /^[a-zA-Z_][a-zA-Z0-9:_-]*$/;
+// Same "safe key" check as taxonomy.categoryLabels keys in config/loader.ts's validateConfig.
+const SAFE_CATEGORY_KEY = /^[a-zA-Z0-9._-]+$/;
+// Blank is valid (see SiteDomainEntry's doc comment); a non-empty value must look like a URL.
+const DOMAIN_SHAPE = /^https?:\/\/.+/;
 
 export interface PanelProjectRef {
   artifactId: string;
@@ -51,6 +55,7 @@ export interface Selections {
   description: string;
   subCategoryProperty: string;
   features: Record<string, boolean>;
+  siteDomains: SiteDomainEntry[];
 }
 
 /**
@@ -74,6 +79,17 @@ export function currentSelections(info: { root: string; artifactId: string }): S
     config.hero.titlePrefix && config.hero.titlePrefix !== info.artifactId
       ? config.hero.titlePrefix
       : prettyBrand(info.artifactId);
+  // Nice first-run UX: pre-seed one row per already-known category (from categoryLabels,
+  // auto-discovered by scanning) rather than making the user retype category names that are
+  // already known - but only when siteDomains hasn't been configured/saved at all yet.
+  const siteDomains: SiteDomainEntry[] =
+    config.taxonomy.siteDomains.length > 0
+      ? config.taxonomy.siteDomains
+      : Object.keys(config.taxonomy.categoryLabels).map((category) => ({
+          category,
+          prodDomain: '',
+          stageDomain: '',
+        }));
   return {
     primary: config.brand.primary,
     accent: config.brand.accent,
@@ -83,6 +99,7 @@ export function currentSelections(info: { root: string; artifactId: string }): S
     description: config.hero.description,
     subCategoryProperty: config.taxonomy.subCategoryProperty || DEFAULT_SUBCATEGORY,
     features,
+    siteDomains,
   };
 }
 
@@ -122,7 +139,39 @@ export function applySelections(project: PanelProjectRef, message: Record<string
 
   const features = (message.features ?? {}) as Record<string, unknown>;
   for (const { key } of FEATURES) config.features[key] = features[key] === true;
+
+  config.taxonomy.siteDomains = sanitizeSiteDomains(message.siteDomains);
   return config;
+}
+
+/**
+ * Validate and normalize the editable site-domains rows from the panel: an invalid category
+ * (or a duplicate) drops the whole row, but an invalid domain shape just clears that one
+ * field back to "" (not configured yet) rather than dropping the row's category name the
+ * user already typed - blank is always a valid, safe value for a domain.
+ */
+function sanitizeSiteDomains(raw: unknown): SiteDomainEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const result: SiteDomainEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const category = String(row.category ?? '').trim();
+    if (!SAFE_CATEGORY_KEY.test(category) || seen.has(category)) continue;
+    seen.add(category);
+    result.push({
+      category,
+      prodDomain: sanitizeDomain(row.prodDomain),
+      stageDomain: sanitizeDomain(row.stageDomain),
+    });
+  }
+  return result;
+}
+
+function sanitizeDomain(value: unknown): string {
+  const domain = String(value ?? '').trim();
+  return DOMAIN_SHAPE.test(domain) ? domain : '';
 }
 
 /** Set the whole brand palette from three chosen colors; shades are derived. */
@@ -155,7 +204,7 @@ function safeLine(value: string, max: number): string {
     .slice(0, max);
 }
 
-/** Friendly brand name from an appId: 'pidilite-component-library' -> 'Pidilite'. */
+/** Friendly brand name from an appId: 'acme-component-library' -> 'Acme'. */
 export function prettyBrand(appId: string): string {
   const first = appId.split('-')[0] || appId;
   return first.charAt(0).toUpperCase() + first.slice(1);

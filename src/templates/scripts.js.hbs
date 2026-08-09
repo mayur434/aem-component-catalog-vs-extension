@@ -115,7 +115,7 @@
     }
 
     /* Strips a leading "<App Id> - " prefix (dash/space tolerant, any dash glyph) from group
-       labels like "Pidilite Component Library - Content" -> "Content". Built from {{appId}} at
+       labels like "Acme Component Library - Content" -> "Content". Built from {{appId}} at
        runtime rather than embedded as template-generated regex source, which is fragile to escape. */
     var APP_PREFIX_RE = (function () {
         var escaped = String({{json appId}}).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/[-\s]+/g, "[-\\s]+");
@@ -819,8 +819,13 @@
     var usageLabel = "";
     var usageModalReady = false;
 
+    /* Prefer the absolute, cross-domain URL (already has .html) when the page's site has a
+       domain configured server-side (see SiteDomainService); otherwise fall back to the old
+       path-relative link, which only resolves when the catalog itself is browsed from the
+       same host that serves /content directly (e.g. author/publish IP, localhost). */
     function usageRow(p) {
-        return '<li class="pcl-usage-modal__item"><a href="' + esc(p.path) + '.html?wcmmode=disabled" target="_blank" rel="noopener">' +
+        var href = p.url ? esc(p.url) : esc(p.path) + ".html?wcmmode=disabled";
+        return '<li class="pcl-usage-modal__item"><a href="' + href + '" target="_blank" rel="noopener">' +
             '<span class="pcl-usage-modal__item-title">' + esc(p.title || p.path) + "</span>" +
             '<span class="pcl-usage-modal__item-path">' + esc(p.path) + "</span></a></li>";
     }

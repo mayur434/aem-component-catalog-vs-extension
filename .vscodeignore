@@ -3,6 +3,7 @@
 .aem-catalog/**
 .gitignore
 node_modules/**
+docs-site/**
 test/**
 coverage/**
 docs/**

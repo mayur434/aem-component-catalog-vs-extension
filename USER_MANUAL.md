@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-This extension supports Adobe Experience Manager as a Cloud Service only. It requires a Maven reactor with `core`, `ui.apps`, `ui.config`, and `all`, plus Cloud SDK or Cloud analyser markers. Legacy AEM and AMS reactors are ignored.
+This extension supports both Adobe Experience Manager as a Cloud Service (AEMaaCS) and Adobe Experience Manager as a Managed Service (AMS). A reactor is recognized as AEMaaCS when it declares `core`, `ui.apps`, `ui.config`, `all`, plus Cloud SDK or Cloud Analyser markers; as AMS when it has an `uber-jar`/`cq-quickstart` dependency with a Java module (`core` or `bundle`) and a content module (`ui.apps` or `content`). Component discovery, Sling Model detection, usage scanning, and local deploy target the same conventions on both platforms. **AEM Cloud Doctor is AEMaaCS-specific** — it enforces the canonical Adobe archetype module layout and will report false positives if run against an AMS reactor.
 
 ## 2. Installation from source
 
@@ -11,46 +11,47 @@ npm ci
 npm run quality
 npm run compile
 npm run package:vsix
-code --install-extension aem-component-library-generator-2.0.0.vsix
+code --install-extension aem-component-library-generator-2.1.0.vsix
 ```
 
 Reload VS Code after installation.
 
 ## 3. First-time workflow
 
-1. Open the AEMaaCS project.
+1. Open the AEMaaCS or AEM AMS reactor (or a workspace containing one or more reactors).
 2. Trust the workspace. Read-only discovery remains available in Restricted Mode, but writes are blocked.
-3. Run **Init** to create `.component-library.json` and `.aem-catalog-policy.json`.
-4. Run **AEM Cloud Doctor** and resolve all errors.
-5. Run **Scan Components** to review metadata and quality.
-6. Run **Preview** to inspect all file states and diffs.
-7. Run **Generate** and confirm the modal transaction prompt.
-8. Build the Maven reactor and test the catalog on the local AEM SDK Author service.
+3. Open the **Catalog panel** — click the "AEM CL" status bar item, the book icon on the Projects sidebar view, or right-click a project and choose **Open Catalog Panel**.
+4. On the **Configure** tab, review the defaults (brand, theme, features, site domains) and click **Generate Micro-site**. This writes `.component-library.json` on first run.
+5. Click **Deploy to Local AEM** from the same tab, then verify the catalog on the local AEM Author service.
+6. Use the **Audit** tab for a portfolio-wide tech audit (classification, duplicates, usage, Excel export) across AEMaaCS and AMS projects.
+7. (AEMaaCS only, optional) Run **AEM Cloud Doctor** from a project's context menu for a governance/compliance health check — this never blocks generation.
 
 ## 4. Commands
 
-| Command                        | Purpose                                                                              |
-| ------------------------------ | ------------------------------------------------------------------------------------ |
-| Create Micro-site              | Guided end-to-end flow: collect inputs → preflight → guided fixes → generate         |
-| Open Dashboard                 | Portfolio health, components, quality, findings, and safe actions                    |
-| Init                           | Create v2 configuration and recommended policy                                       |
-| Run AEM Cloud Doctor           | Validate AEMaaCS structure, packages, configuration, governance, RepoInit, and drift |
-| Scan Components                | Produce the detailed local governance report                                         |
-| Preview                        | Show desired artifacts, state, conflicts, orphans, and text diffs                    |
-| Generate                       | Apply safe changes in an atomic transaction                                          |
-| Update                         | Reconcile the current generator with owned artifacts                                 |
-| Roll Back Last Generation      | Restore the latest transaction snapshot                                              |
-| Export Redacted Support Bundle | Export local diagnostics without absolute project paths                              |
+| Command                                   | Purpose                                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Open Catalog Panel                        | Unified panel — Overview (portfolio health), Configure & Generate, and Audit tabs    |
+| Configure & Generate Micro-site           | Open the Catalog panel's Configure tab, review defaults, and generate                |
+| Generate (Use Existing Config)            | Re-generate using the existing configuration, no prompts                             |
+| Deploy to Local AEM                       | Build and deploy `core`/`bundle`, `ui.apps`, `ui.config` to a local instance          |
+| Preview Generation Plan                   | Show desired artifacts, state, conflicts, orphans, and text diffs                    |
+| Scan Components                           | Produce the detailed local governance report                                         |
+| Run Component Audit                       | Classification, duplicate detection, usage analysis, Excel export (AEMaaCS & AMS)    |
+| (Advanced) Run AEM Cloud Doctor           | Validate AEMaaCS structure, packages, configuration, governance, RepoInit, and drift |
+| Roll Back Last Generation                 | Restore the latest transaction snapshot                                              |
+| (Advanced) Export Redacted Support Bundle | Export local diagnostics without absolute project paths                              |
 
-### 4.1 Create Micro-site (guided)
+The headless CLI additionally exposes `init`, `preflight`, `remediate`, and `unlock` (see §4a and §10) — these are not currently surfaced as VS Code commands.
 
-The **Create Micro-site** command is a single, guided flow for producing a
-top-grade catalog from scratch. It steps through brand colors, page title, hero
-copy, the sub-category taxonomy property, and the author deploy target — each
-field validated live, with Back/Next/Cancel. It then writes the configuration and
-runs the same safety pipeline as headless generation: **preflight → detect-and-guide
-remediation → Cloud Doctor → transactional generation**. Every remediation and the
-final apply are previewed and require explicit approval; nothing is written silently.
+### 4.1 Configure & Generate
+
+The **Configure & Generate** tab is a single-page form for producing the catalog
+from scratch or adjusting an existing one: brand name, catalog title (with presets),
+description, theme colors (swatch presets, a custom picker, or auto-detected from the
+workspace's clientlib CSS), the sub-category fallback property, per-site domains, and
+feature toggles. Clicking **Generate Micro-site** writes the configuration and runs
+generation directly — no preflight or Cloud Doctor gate blocks it. Headless generation
+(the CLI's `generate` command) runs the fuller safety pipeline described in §4a.
 
 ## 4a. Advanced failure handling
 
@@ -130,7 +131,7 @@ Before changing files, the engine stores a transaction under `.aem-catalog/backu
 - Runtime responses use private caching and `nosniff`.
 - Metadata is cached and invalidated by Sling resource changes.
 - README text is escaped before the limited Markdown renderer creates HTML.
-- The VS Code dashboard uses external assets, strict CSP, allow-listed messages, and discovered-project identifiers rather than paths.
+- The Catalog panel webview inlines all CSS and JS (no external resource loading), enforces a strict CSP, allow-lists message shapes, and uses discovered-project identifiers rather than raw paths in messages.
 
 ## 10. CI usage
 
@@ -151,9 +152,9 @@ Generation in CI requires `--yes`; conflicts still require deliberate `--force`.
 
 ## 11. Troubleshooting
 
-### No AEMaaCS project found
+### No AEM project found
 
-Confirm the reactor POM uses `packaging=pom`, declares modules, and contains `aem-sdk-api`, the AEM analyser, or the standard Cloud module/Dispatcher structure.
+For AEMaaCS: confirm the reactor POM uses `packaging=pom`, declares modules, and contains `aem-sdk-api`, the AEM analyser, or the standard Cloud module/Dispatcher structure. For AMS: confirm the POM declares an `uber-jar`/`cq-quickstart-product-dependencies` dependency (or references `com.adobe.aem`) alongside a Java module (`core` or `bundle`) and a content module (`ui.apps` or `content`).
 
 ### Doctor reports package separation errors
 

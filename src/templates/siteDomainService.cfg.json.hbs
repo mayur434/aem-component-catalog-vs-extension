@@ -1,0 +1,7 @@
+{
+    "siteDomains": [
+        {{#each siteDomains}}
+        "{{osgiString this}}"{{#unless @last}},{{/unless}}
+        {{/each}}
+    ]
+}

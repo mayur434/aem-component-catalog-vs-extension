@@ -22,6 +22,10 @@ export function planServlet(config: ComponentLibraryConfig, paths: AemPaths): Ge
         subServiceName: config.serviceUser.subServiceName,
         catalogContentRoot: `/content/${config.appId}`,
         usageCron: config.catalog.usageCron,
+        // Only wire the SiteDomainService @Reference when it's actually generated (see
+        // siteDomainServiceGenerator.ts) - referencing a component that doesn't exist would
+        // leave the bundle unable to resolve the OSGi service reference at runtime.
+        hasSiteDomains: config.taxonomy.siteDomains.length > 0,
       }),
     },
     {

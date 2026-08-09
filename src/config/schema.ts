@@ -122,6 +122,23 @@ export interface GovernanceConfig {
 }
 
 /**
+ * Per-category public domain mapping, used to turn the "where it's used" links (built from
+ * raw JCR content paths) into absolute URLs that resolve regardless of which host the
+ * catalog itself is being viewed from. Each brand site this catalog scans is served from
+ * its own public domain, and that domain differs between stage and prod too - a bare
+ * relative link only ever worked by coincidence when the catalog was browsed from the same
+ * host that also serves /content directly (e.g. localhost).
+ *
+ * Leaving `prodDomain`/`stageDomain` empty is a valid, expected state ("not configured yet")
+ * and keeps the old relative-link behaviour for that category - it is not an error.
+ */
+export interface SiteDomainEntry {
+  category: string;
+  prodDomain: string;
+  stageDomain: string;
+}
+
+/**
  * Two-level catalog taxonomy.
  * - Category  = the website (first path segment under the components root, e.g. `corporate`),
  *   shown using the friendly label from `categoryLabels` (falls back to a prettified key).
@@ -131,6 +148,7 @@ export interface GovernanceConfig {
 export interface TaxonomyConfig {
   categoryLabels: Record<string, string>;
   subCategoryProperty: string;
+  siteDomains: SiteDomainEntry[];
 }
 
 export interface ComponentLibraryConfig {

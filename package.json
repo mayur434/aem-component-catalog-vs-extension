@@ -2,8 +2,8 @@
   "name": "aem-component-library-generator",
   "displayName": "AEM Component Catalog",
   "description": "Configure, generate, and deploy a browsable component showcase for your AEM as a Cloud Service project.",
-  "version": "2.0.0",
-  "publisher": "pidilite",
+  "version": "2.1.0",
+  "publisher": "aem-catalog",
   "license": "MIT",
   "engines": {
     "vscode": "^1.100.0"
@@ -34,8 +34,7 @@
     "onCommand:aemComponentLibrary.rollback",
     "onCommand:aemComponentLibrary.exportSupportBundle",
     "onCommand:aemComponentLibrary.audit",
-    "onCommand:aemComponentLibrary.openDashboard",
-    "onView:aemCL.actions",
+    "onCommand:aemComponentLibrary.openCatalog",
     "onView:aemCL.projects",
     "onView:aemCL.components"
   ],
@@ -68,10 +67,6 @@
     "views": {
       "aemComponentLibrary": [
         {
-          "id": "aemCL.actions",
-          "name": "Actions"
-        },
-        {
           "id": "aemCL.projects",
           "name": "Projects"
         },
@@ -83,11 +78,17 @@
     },
     "viewsWelcome": [
       {
-        "view": "aemCL.actions",
-        "contents": "Generate an internal component-catalog micro-site.\n[Configure & Generate Micro-site](command:aemComponentLibrary.configure)\n[Generate (no prompts)](command:aemComponentLibrary.generate)\n[Deploy to Local AEM](command:aemComponentLibrary.deployLocal)\n[Preview Changes](command:aemComponentLibrary.preview)"
+        "view": "aemCL.projects",
+        "contents": "No AEM project detected in this workspace.\nOpen a workspace containing an AEMaaCS or AEM AMS Maven reactor (core/bundle, ui.apps, ui.config) to get started."
       }
     ],
     "commands": [
+      {
+        "command": "aemComponentLibrary.openCatalog",
+        "title": "AEM Component Catalog: Open Catalog Panel",
+        "icon": "$(book)",
+        "enablement": "workspaceFolderCount > 0"
+      },
       {
         "command": "aemComponentLibrary.configure",
         "title": "AEM Component Catalog: Configure & Generate Micro-site",
@@ -96,7 +97,7 @@
       },
       {
         "command": "aemComponentLibrary.deployLocal",
-        "title": "AEM Component Catalog: Deploy to Local AEM (core, ui.apps, ui.config)",
+        "title": "AEM Component Catalog: Deploy to Local AEM (core/bundle, ui.apps, ui.config)",
         "icon": "$(cloud-upload)",
         "enablement": "workspaceFolderCount > 0"
       },
@@ -122,11 +123,6 @@
         "command": "aemComponentLibrary.refreshSidebar",
         "title": "AEM Component Catalog: Refresh Sidebar",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "aemComponentLibrary.openDashboard",
-        "title": "AEM Component Catalog: Open Dashboard",
-        "icon": "$(dashboard)"
       },
       {
         "command": "aemComponentLibrary.doctor",
@@ -156,9 +152,61 @@
     "menus": {
       "view/title": [
         {
+          "command": "aemComponentLibrary.openCatalog",
+          "when": "view == aemCL.projects",
+          "group": "navigation@1"
+        },
+        {
           "command": "aemComponentLibrary.refreshSidebar",
           "when": "view =~ /^aemCL\\./",
-          "group": "navigation"
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "aemComponentLibrary.openCatalog",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "inline"
+        },
+        {
+          "command": "aemComponentLibrary.configure",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "1_generate@1"
+        },
+        {
+          "command": "aemComponentLibrary.generate",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "1_generate@2"
+        },
+        {
+          "command": "aemComponentLibrary.preview",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "1_generate@3"
+        },
+        {
+          "command": "aemComponentLibrary.deployLocal",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "2_deploy@1"
+        },
+        {
+          "command": "aemComponentLibrary.audit",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "3_audit@1"
+        },
+        {
+          "command": "aemComponentLibrary.rollback",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "9_advanced@1"
+        },
+        {
+          "command": "aemComponentLibrary.doctor",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "9_advanced@2"
+        },
+        {
+          "command": "aemComponentLibrary.exportSupportBundle",
+          "when": "view == aemCL.projects && viewItem == project",
+          "group": "9_advanced@3"
         }
       ]
     },
@@ -227,10 +275,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/pidilite/aem-component-catalog-vs-extension.git"
+    "url": "https://github.com/mayur434/aem-component-catalog-vs-extension.git"
   },
   "bugs": {
-    "url": "https://github.com/pidilite/aem-component-catalog-vs-extension/issues"
+    "url": "https://github.com/mayur434/aem-component-catalog-vs-extension/issues"
   },
-  "homepage": "https://github.com/pidilite/aem-component-catalog-vs-extension#readme"
+  "homepage": "https://github.com/mayur434/aem-component-catalog-vs-extension#readme"
 }
