@@ -26,7 +26,7 @@ jobs:
       - run: npm run sbom
       - name: Create checksums
         run: sha256sum *.vsix sbom.cdx.json > SHA256SUMS
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: '*.vsix'
       - name: Create GitHub release
