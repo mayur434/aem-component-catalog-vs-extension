@@ -39,6 +39,8 @@ const JCR_PROPERTY = /^[a-zA-Z_][a-zA-Z0-9:_-]*$/;
 const SAFE_CATEGORY_KEY = /^[a-zA-Z0-9._-]+$/;
 // Blank is valid (see SiteDomainEntry's doc comment); a non-empty value must look like a URL.
 const DOMAIN_SHAPE = /^https?:\/\/.+/;
+// Blank is valid; a non-empty value must be an absolute path with no whitespace or markup-breaking chars.
+const PATH_SHAPE = /^\/[^\s<>&"']*$/;
 
 export interface PanelProjectRef {
   artifactId: string;
@@ -89,6 +91,7 @@ export function currentSelections(info: { root: string; artifactId: string }): S
           category,
           prodDomain: '',
           stageDomain: '',
+          shortenPath: '',
         }));
   return {
     primary: config.brand.primary,
@@ -164,6 +167,7 @@ function sanitizeSiteDomains(raw: unknown): SiteDomainEntry[] {
       category,
       prodDomain: sanitizeDomain(row.prodDomain),
       stageDomain: sanitizeDomain(row.stageDomain),
+      shortenPath: sanitizePath(row.shortenPath),
     });
   }
   return result;
@@ -172,6 +176,11 @@ function sanitizeSiteDomains(raw: unknown): SiteDomainEntry[] {
 function sanitizeDomain(value: unknown): string {
   const domain = String(value ?? '').trim();
   return DOMAIN_SHAPE.test(domain) ? domain : '';
+}
+
+function sanitizePath(value: unknown): string {
+  const shortenPath = String(value ?? '').trim();
+  return PATH_SHAPE.test(shortenPath) ? shortenPath : '';
 }
 
 /** Set the whole brand palette from three chosen colors; shades are derived. */

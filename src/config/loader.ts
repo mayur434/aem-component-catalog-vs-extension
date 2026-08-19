@@ -194,6 +194,9 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
     // the old relative-link behaviour") - not an error. Only a non-empty value that isn't a
     // well-formed http(s) URL is rejected, and neither domain is required to be filled in.
     const domainPattern = /^https?:\/\/.+/;
+    // A blank shortenPath is a valid, expected state ("no prefix to strip") - not an error.
+    // Only a non-empty value that isn't an absolute path is rejected.
+    const pathPattern = /^\/[^\s<>&"']*$/;
     for (const entry of config.taxonomy.siteDomains ?? []) {
       if (!/^[a-zA-Z0-9._-]+$/.test(entry.category)) {
         errors.push(`taxonomy.siteDomains category "${entry.category}" must be a safe folder segment`);
@@ -206,6 +209,11 @@ export function validateConfig(config: ComponentLibraryConfig): string[] {
       if (entry.stageDomain && !domainPattern.test(entry.stageDomain)) {
         errors.push(
           `taxonomy.siteDomains["${entry.category}"].stageDomain must start with http:// or https://, or be empty`,
+        );
+      }
+      if (entry.shortenPath && !pathPattern.test(entry.shortenPath)) {
+        errors.push(
+          `taxonomy.siteDomains["${entry.category}"].shortenPath must be an absolute path (e.g. /content/mysite), or be empty`,
         );
       }
     }

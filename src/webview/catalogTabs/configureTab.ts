@@ -273,8 +273,9 @@ function bodyHtml(): string {
       <h2>Site domains</h2>
       <p class="muted">"Where it's used" links are built from each page's raw content path — that only resolves when the catalog is opened from the same host that also serves <code>/content</code> directly (e.g. localhost). Once the catalog is opened from its own public domain, add each site's production and stage domain here to turn those links into working absolute URLs. Leave a domain blank to keep the old relative-link behavior for that site — nothing breaks either way.</p>
       <p class="muted"><strong>Content root, not category:</strong> the first column must be the site's actual JCR root segment under <code>/content</code> (e.g. <code>/content/acme-corp/en/…</code> → <code>acme-corp</code>) — check the real content tree if you're not sure. Rows are pre-filled from your component categories as a starting guess, but a site's content root often has a <em>different</em> name than its component category (e.g. category <code>corporate</code> might actually live under <code>/content/acme-corporate-site</code>) — edit each row to match before generating, or the link won't resolve.</p>
+      <p class="muted"><strong>Path to strip:</strong> enter the exact leading path this site's own Dispatcher rewrite rules strip when serving a page — check that site's <code>dispatcher/src/conf.d/rewrites/rewrite.rules</code> to be sure, since it's project-specific. It's most commonly <code>/content/&lt;root&gt;</code> (the standard AEM Cloud archetype default — a public path like <code>/foo/bar.html</code> is rewritten internally to <code>/content/&lt;root&gt;/foo/bar.html</code>), but treat that as a starting guess, not a given. Leave it blank to link to the full raw path — always the safe choice when you haven't confirmed the site's rewrite behavior.</p>
       <div class="sitedomain-head">
-        <span>Content root (under /content)</span><span>Production domain</span><span>Stage domain</span><span></span>
+        <span>Content root (under /content)</span><span>Production domain</span><span>Stage domain</span><span>Path to strip</span><span></span>
       </div>
       <div id="cfg-siteDomains"></div>
       <button type="button" class="ghost" id="cfg-addSiteDomain">+ Add site</button>
@@ -331,8 +332,8 @@ function styles(): string {
 #tab-configure .pills.small{margin-top:10px}
 #tab-configure .pill{padding:6px 12px;border-radius:20px;border:1px solid var(--vscode-widget-border,rgba(127,127,127,.35));background:transparent;color:var(--vscode-foreground);cursor:pointer;font:inherit;font-size:12px}
 #tab-configure .pill:hover{border-color:var(--vscode-focusBorder)}
-#tab-configure .sitedomain-head{display:grid;grid-template-columns:1fr 1.3fr 1.3fr auto;gap:8px;font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:6px;padding:0 2px}
-#tab-configure .sitedomain-row{display:grid;grid-template-columns:1fr 1.3fr 1.3fr auto;gap:8px;margin-bottom:8px;align-items:center}
+#tab-configure .sitedomain-head{display:grid;grid-template-columns:1fr 1.3fr 1.3fr auto auto;gap:8px;font-size:11px;color:var(--vscode-descriptionForeground);margin-bottom:6px;padding:0 2px}
+#tab-configure .sitedomain-row{display:grid;grid-template-columns:1fr 1.3fr 1.3fr auto auto;gap:8px;margin-bottom:8px;align-items:center}
 #tab-configure .sitedomain-row input[type=text]{width:100%;padding:8px 10px;font-size:12px}
 #tab-configure .sitedomain-row .ghost{white-space:nowrap}
 #tab-configure #cfg-addSiteDomain{margin-top:2px}
@@ -398,9 +399,11 @@ function renderSiteDomains(){
     prod.oninput=()=>{row.prodDomain=prod.value;};
     const stage=document.createElement('input');stage.type='text';stage.placeholder='https://stage.example.com';stage.value=row.stageDomain;stage.setAttribute('aria-label','Stage domain for '+(row.category||('content root '+(i+1))));
     stage.oninput=()=>{row.stageDomain=stage.value;};
+    const shorten=document.createElement('input');shorten.type='text';shorten.placeholder='/content/'+(row.category||'mysite');shorten.value=row.shortenPath||'';shorten.setAttribute('aria-label','Path to strip for '+(row.category||('content root '+(i+1))));
+    shorten.oninput=()=>{row.shortenPath=shorten.value;};
     const rm=document.createElement('button');rm.type='button';rm.className='ghost';rm.textContent='Remove';rm.setAttribute('aria-label','Remove '+(row.category||('content root '+(i+1))));
     rm.onclick=()=>{cur.selections.siteDomains.splice(i,1);renderSiteDomains();};
-    wrap.appendChild(cat);wrap.appendChild(prod);wrap.appendChild(stage);wrap.appendChild(rm);
+    wrap.appendChild(cat);wrap.appendChild(prod);wrap.appendChild(stage);wrap.appendChild(shorten);wrap.appendChild(rm);
     el.appendChild(wrap);
   });
 }
@@ -440,7 +443,7 @@ function init(){
   $('cfg-descInput').oninput=()=>{cur.selections.description=$('cfg-descInput').value;};
   $('cfg-subcatInput').oninput=()=>{cur.selections.subCategoryProperty=$('cfg-subcatInput').value;};
   $('cfg-detect').onclick=()=>{$('cfg-detect').disabled=true;$('cfg-detect').textContent='Scanning…';vscode.postMessage({tab:'configure',type:'detectTheme',projectId:cur.id});};
-  $('cfg-addSiteDomain').onclick=()=>{cur.selections.siteDomains.push({category:'',prodDomain:'',stageDomain:''});renderSiteDomains();};
+  $('cfg-addSiteDomain').onclick=()=>{cur.selections.siteDomains.push({category:'',prodDomain:'',stageDomain:'',shortenPath:''});renderSiteDomains();};
   const preselectId=(STATE.preselectId&&STATE.projects.some(p=>p.id===STATE.preselectId))?STATE.preselectId:STATE.projects[0].id;
   sel.value=preselectId;
   selectProject(preselectId);

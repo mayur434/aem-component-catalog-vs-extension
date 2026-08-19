@@ -41,7 +41,7 @@ export function planSiteDomainService(config: ComponentLibraryConfig, paths: Aem
       content: renderTemplate('SiteDomainService.java.hbs', {
         package: config.output.servletPackage,
         ocdName: `${config.appId} - Site Domain Mapping`,
-        exampleEntry: `${categories[0]}=https://www.example.com`,
+        exampleEntry: `${categories[0]}=https://www.example.com=/content/${categories[0]}`,
         siteDomainCategories,
       }),
     },

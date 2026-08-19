@@ -55,11 +55,14 @@ export function planSiteDomainOsgiConfigs(config: ComponentLibraryConfig, paths:
   if (categories.length === 0) return [];
 
   const byCategory = new Map(config.taxonomy.siteDomains.map((entry) => [entry.category, entry]));
+  // shortenPath is one value per site, not per run mode - a site's Dispatcher rewrite behaviour
+  // is a fixed property of its own rewrite.rules, which stage and prod share, so the same
+  // value is written into both generated config files.
   const entriesFor = (runMode: 'stage' | 'prod'): string[] =>
     categories.map((category) => {
       const entry = byCategory.get(category);
       const domain = (runMode === 'prod' ? entry?.prodDomain : entry?.stageDomain) ?? '';
-      return `${category}=${domain}`;
+      return `${category}=${domain}=${entry?.shortenPath ?? ''}`;
     });
 
   // PID equals the fully-qualified class name of the generated SiteDomainService, in the

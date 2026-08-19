@@ -131,11 +131,23 @@ export interface GovernanceConfig {
  *
  * Leaving `prodDomain`/`stageDomain` empty is a valid, expected state ("not configured yet")
  * and keeps the old relative-link behaviour for that category - it is not an error.
+ *
+ * `shortenPath` addresses a second, independent gap: even once a domain is configured, the raw
+ * JCR path (`/content/<category>/...`) usually does not match the site's real public URL
+ * structure, because the site's own Dispatcher rewrite rules typically serve pages WITHOUT some
+ * leading path prefix (most commonly `/content/<category>`, the standard AEM Cloud archetype
+ * convention, but Dispatcher rewrite rules are project-specific and can strip something else
+ * entirely). Rather than guess, this is a free-text field the project owner fills in per site
+ * (mirroring their own `dispatcher/src/conf.d/rewrites/rewrite.rules`): when non-empty and the
+ * content path starts with it, the generated link strips that exact prefix before appending the
+ * domain; leave it empty (the default) to keep the full raw path, which is always the safe
+ * fallback for a site whose rewrite behaviour hasn't been confirmed yet.
  */
 export interface SiteDomainEntry {
   category: string;
   prodDomain: string;
   stageDomain: string;
+  shortenPath: string;
 }
 
 /**

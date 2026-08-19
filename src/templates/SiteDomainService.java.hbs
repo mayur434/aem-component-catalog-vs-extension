@@ -41,12 +41,18 @@ public final class SiteDomainService {
                     + "config.prod) since stage and prod domains usually differ.")
     @interface Config {
         @AttributeDefinition(name = "Site domains",
-                description = "One entry per site, formatted <contentRootSegment>=<https://domain>, "
+                description = "One entry per site, formatted <contentRootSegment>=<https://domain>[=<pathToStrip>], "
                         + "e.g. {{exampleEntry}}. The content root "
                         + "segment is the first path element under /content - note this is the site's "
                         + "actual JCR root name, which does not necessarily have to match the "
-                        + "component library's own /apps category key. Leave the value empty "
-                        + "(\"key=\") to keep the old relative-link behaviour for that site.")
+                        + "component library's own /apps category key. The optional third segment is the "
+                        + "exact leading path this site's Dispatcher rewrite rules strip when serving a "
+                        + "page (most commonly /content/<contentRootSegment>, the standard AEM Cloud "
+                        + "archetype default, but check this site's own rewrite.rules - it is whatever "
+                        + "that project actually strips): when the content path starts with it, that "
+                        + "prefix is removed before the domain is prepended, reconstructing the real "
+                        + "public URL. Leave the third segment empty, or the whole value empty (\"key=\"), "
+                        + "to keep the old relative-link behaviour for that site.")
         String[] siteDomains() default {
         {{#each siteDomainCategories}}
                 {{javaString this.entry}}{{#unless @last}},{{/unless}}
@@ -57,11 +63,13 @@ public final class SiteDomainService {
     private static final Logger LOG = LoggerFactory.getLogger(SiteDomainService.class);
 
     private volatile Map<String, String> domainsByRoot = new HashMap<>();
+    private volatile Map<String, String> shortenPathByRoot = new HashMap<>();
 
     @Activate
     @Modified
     protected void activate(Config config) {
-        Map<String, String> next = new HashMap<>();
+        Map<String, String> nextDomains = new HashMap<>();
+        Map<String, String> nextShortenPaths = new HashMap<>();
         for (String entry : config.siteDomains()) {
             if (entry == null) {
                 continue;
@@ -71,25 +79,42 @@ public final class SiteDomainService {
                 continue;
             }
             String root = entry.substring(0, eq).trim();
-            String domain = entry.substring(eq + 1).trim();
-            if (root.isEmpty() || domain.isEmpty()) {
+            String remainder = entry.substring(eq + 1).trim();
+            if (root.isEmpty()) {
+                continue;
+            }
+
+            String domain = remainder;
+            String shortenPath = "";
+            int secondEq = remainder.indexOf('=');
+            if (secondEq >= 0) {
+                domain = remainder.substring(0, secondEq).trim();
+                shortenPath = remainder.substring(secondEq + 1).trim();
+            }
+            if (domain.isEmpty()) {
                 continue;
             }
             while (domain.endsWith("/")) {
                 domain = domain.substring(0, domain.length() - 1);
             }
-            next.put(root, domain);
+            nextDomains.put(root, domain);
+            if (!shortenPath.isEmpty()) {
+                nextShortenPaths.put(root, shortenPath);
+            }
         }
-        domainsByRoot = next;
-        LOG.info("Site domain mapping loaded: {} configured root(s) of {} entries",
-                next.size(), config.siteDomains().length);
+        domainsByRoot = nextDomains;
+        shortenPathByRoot = nextShortenPaths;
+        LOG.info("Site domain mapping loaded: {} configured root(s) of {} entries ({} with a path to strip)",
+                nextDomains.size(), config.siteDomains().length, nextShortenPaths.size());
     }
 
     /**
      * Turns a raw JCR content path into a fully-qualified page URL using the domain
      * configured for that path's site root, or {@code null} if that root has no
      * domain configured (callers should fall back to their previous relative-link
-     * behaviour).
+     * behaviour). When that root has a shorten-path configured and the content path
+     * starts with it, that exact prefix is stripped first to match the site's public
+     * URL structure.
      */
     public String resolveUrl(String contentPath) {
         if (contentPath == null || !contentPath.startsWith("/content/")) {
@@ -102,6 +127,14 @@ public final class SiteDomainService {
         if (domain == null || domain.isEmpty()) {
             return null;
         }
-        return domain + contentPath + ".html";
+        String publicPath = contentPath;
+        String shortenPath = shortenPathByRoot.get(root);
+        if (shortenPath != null && publicPath.startsWith(shortenPath)) {
+            publicPath = publicPath.substring(shortenPath.length());
+            if (publicPath.isEmpty()) {
+                publicPath = "/";
+            }
+        }
+        return domain + publicPath + ".html";
     }
 }
