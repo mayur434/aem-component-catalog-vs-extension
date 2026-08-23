@@ -85,7 +85,11 @@ export function getDefaults(appId: string): ComponentLibraryConfig {
       assetRoot: `/content/dam/${appId}/catalog`,
     },
     serviceUser: {
-      name: `${appId}-service`,
+      // Deliberately distinct from the AEM Project Archetype's own default "<appId>-service"
+      // user (created by that archetype's own bundled RepoInit config): sharing that identity
+      // would mix the catalog's narrow, read-mostly privilege scope with whatever broader
+      // permissions the site's general-purpose service user already carries.
+      name: `${appId}-componentlibrary-service`,
       subServiceName: 'component-library',
       bundleSymbolicName: `${appId}.core`,
     },

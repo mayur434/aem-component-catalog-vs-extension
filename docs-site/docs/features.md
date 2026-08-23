@@ -8,7 +8,7 @@ Every capability below ships in both the VS Code extension and the headless CLI,
 
 ## Discovery & inventory
 
-- **AEMaaCS-only project detection and package-boundary validation.** The tool only activates against a positively-identified AEMaaCS Maven reactor (Cloud SDK/analyser markers, or the standard Cloud module and Dispatcher structure) with the required `core`, `ui.apps`, `ui.config`, and `all` modules.
+- **AEMaaCS and AEM AMS project detection and package-boundary validation.** The tool activates against a positively-identified AEM reactor — either AEMaaCS (Cloud SDK/analyser markers, or the standard Cloud module and Dispatcher structure) or AEM AMS (an `uber-jar`/`cq-quickstart` dependency plus a Java module and a content module) — with the required `core` (or `bundle`), `ui.apps` (or `content`), `ui.config`, and `all` modules.
 - **Recursive component inventory.** Scans component source for dialog fields, Sling Models, JSON exporters, page usages, dependencies, owners, versions, tags, and lifecycle status.
 - **Explainable component quality score.** A deterministic, weighted score (see [Component quality](./usage-manual/configuration-and-governance#component-quality)) rather than an opaque heuristic — every point is traceable to a specific, missing or present capability.
 
@@ -16,7 +16,7 @@ Every capability below ships in both the VS Code extension and the headless CLI,
 
 - **Governance metadata model.** Components declare `catalogOwner`, `catalogStatus`, `catalogVersion`, and `catalogTags` directly on their `.content.xml` (property names are configurable); lifecycle statuses default to `draft`, `active`, `deprecated`.
 - **Organization policy presets.** `.aem-catalog-policy.json` extends a preset (`recommended-aemaacs` or `strict-aemaacs`), sets per-rule severity (`error` / `warning` / `info` / `off`), and can enforce a minimum quality score. See the full [Policy Reference](./usage-manual/configuration-and-governance#policy-reference).
-- **AEM Cloud Doctor.** Validates AEMaaCS project structure, required modules and Dispatcher, FileVault immutable/mutable package separation, `all` container embeds, RepoInit shape and author run-mode placement, configuration and policy validity, component documentation/governance completeness, and generated-file drift (conflicts, stale output, orphaned manifest entries) — with **Markdown, JSON, and SARIF** report output for CI code-scanning.
+- **AEM Cloud Doctor.** Validates AEMaaCS project structure, required modules and Dispatcher, FileVault immutable/mutable package separation, `all` container embeds, RepoInit shape and author run-mode placement, configuration and policy validity, component documentation/governance completeness, and generated-file drift (conflicts, stale output, orphaned manifest entries) — with **Markdown, JSON, and SARIF** report output for CI code-scanning. Doctor's structural checks (package separation, `all` embeds) are AEMaaCS-specific by design; running it against an AEM AMS reactor is not recommended (see [Getting Started](./usage-manual/getting-started)).
 
 ## Safe generation
 
@@ -40,7 +40,7 @@ Every capability below ships in both the VS Code extension and the headless CLI,
 
 ## Cross-brand technical audit
 
-- **Tech Audit Report** (`AEM Component Audit: Generate Tech Audit Report`) — a separate, read-only reporting engine (`src/audit`) that classifies components, parses content packages, and detects **duplicate components across reactors**, exporting an Excel report. Unlike catalog generation, this command's scope explicitly includes **both AEMaaCS and legacy AMS** projects, since it's answering a cross-portfolio governance question rather than generating a live catalog.
+- **Tech Audit Report** (`AEM Component Audit: Generate Tech Audit Report`) — a separate, read-only reporting engine (`src/audit`) that classifies components, parses content packages, and detects **duplicate components across reactors**, exporting an Excel report. This command's scope explicitly includes **both AEMaaCS and AEM AMS** projects, since it's answering a cross-portfolio governance question rather than generating a live catalog.
 
 ## Security & privacy by design
 

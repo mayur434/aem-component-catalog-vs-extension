@@ -30,8 +30,13 @@ export interface AemPaths {
 
 export function resolveAemPaths(projectRoot: string): AemPaths {
   const root = fs.realpathSync(projectRoot);
-  const core = requireModule(root, 'core');
-  const uiApps = requireModule(root, 'ui.apps');
+  // 'core'/'ui.apps' are the AEMaaCS names; AMS reactors are also accepted with 'bundle'/
+  // 'content' (see isAmsReactor in projectDetector.ts) - resolve whichever pair is actually on
+  // disk instead of hard-requiring the AEMaaCS names, so a genuinely alternate-named AMS
+  // reactor doesn't crash generation with a raw "module not found" error after already having
+  // passed platform detection and the ui.config prerequisite check.
+  const core = requireModuleFrom(root, ['core', 'bundle']);
+  const uiApps = requireModuleFrom(root, ['ui.apps', 'content']);
   const uiConfig = requireModule(root, 'ui.config');
   const all = requireModule(root, 'all');
   const uiContent = optionalModule(root, 'ui.content');
@@ -147,6 +152,17 @@ function requireModule(root: string, name: string): string {
     throw new Error(`Required AEMaaCS module "${name}" not found at ${modulePath}`);
   }
   return fs.realpathSync(modulePath);
+}
+
+/** Like requireModule, but accepts any one of several candidate module names (tried in order). */
+function requireModuleFrom(root: string, names: string[]): string {
+  for (const name of names) {
+    const modulePath = path.join(root, name);
+    if (fs.existsSync(modulePath)) return fs.realpathSync(modulePath);
+  }
+  throw new Error(
+    `None of the required modules (${names.map((name) => `"${name}"`).join(' or ')}) were found under ${root}`,
+  );
 }
 
 function optionalModule(root: string, name: string): string | null {

@@ -103,14 +103,14 @@ describe('config-panel selections merge (not clobber) the existing config', () =
       subCategoryProperty: 'catalogSubCategory',
       features: {},
       siteDomains: [
-        { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: 'https://stage.example.com' },
+        { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: 'https://stage.example.com', shortenPath: '/content/campaign' },
         { category: 'corporate', prodDomain: '', stageDomain: '' },
       ],
     };
     const after = applySelections(project, message);
     expect(after.taxonomy.siteDomains).toEqual([
-      { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: 'https://stage.example.com' },
-      { category: 'corporate', prodDomain: '', stageDomain: '' },
+      { category: 'campaign', prodDomain: 'https://www.example.com', stageDomain: 'https://stage.example.com', shortenPath: '/content/campaign' },
+      { category: 'corporate', prodDomain: '', stageDomain: '', shortenPath: '' },
     ]);
   });
 
@@ -122,12 +122,12 @@ describe('config-panel selections merge (not clobber) the existing config', () =
 
     const selections = currentSelections({ root: fixture.root, artifactId: 'sample-site' });
     expect(selections.siteDomains).toEqual([
-      { category: 'haisha', prodDomain: '', stageDomain: '' },
-      { category: 'corporate', prodDomain: '', stageDomain: '' },
+      { category: 'haisha', prodDomain: '', stageDomain: '', shortenPath: '' },
+      { category: 'corporate', prodDomain: '', stageDomain: '', shortenPath: '' },
     ]);
   });
 
-  it('sanitizes site-domain rows: drops unsafe/duplicate categories, blanks malformed domains', () => {
+  it('sanitizes site-domain rows: drops unsafe/duplicate categories, blanks malformed domains and paths', () => {
     fixture = createAemCloudFixture();
     const project = { artifactId: 'sample-site', root: fixture.root, javaPackage: 'com.example.core' };
     const message = {
@@ -140,14 +140,16 @@ describe('config-panel selections merge (not clobber) the existing config', () =
       subCategoryProperty: '',
       features: {},
       siteDomains: [
-        { category: 'campaign', prodDomain: 'not-a-url', stageDomain: 'https://stage.example.com' },
+        { category: 'campaign', prodDomain: 'not-a-url', stageDomain: 'https://stage.example.com', shortenPath: 'content/campaign' },
         { category: 'bad category!', prodDomain: 'https://x.example.com', stageDomain: '' },
         { category: 'campaign', prodDomain: '', stageDomain: '' }, // duplicate category, dropped
       ],
     };
     const after = applySelections(project, message);
     expect(after.taxonomy.siteDomains).toEqual([
-      { category: 'campaign', prodDomain: '', stageDomain: 'https://stage.example.com' },
+      // Missing leading "/" makes shortenPath malformed, so it's blanked - same treatment as
+      // "not-a-url" for prodDomain - not a dropped row.
+      { category: 'campaign', prodDomain: '', stageDomain: 'https://stage.example.com', shortenPath: '' },
     ]);
   });
 });

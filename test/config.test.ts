@@ -43,4 +43,46 @@ describe('configuration', () => {
     expect(errors).toContain('unsafe CSS');
     expect(errors).toContain('must be "author"');
   });
+
+  it('derives every identity-bearing default from the given appId, with no vendor coupling', () => {
+    const acme = getDefaults('acme-widgets');
+    const globex = getDefaults('globex-storefront');
+
+    expect(acme.components.root).toBe('/apps/acme-widgets/components');
+    expect(acme.output.servletPackage).toBe('com.acme.widgets.core.servlets');
+    expect(acme.output.clientlibCategory).toBe('acme-widgets.componentlibrary');
+    expect(acme.output.contentPath).toBe('/content/acme-widgets/component-library');
+    expect(acme.output.assetRoot).toBe('/content/dam/acme-widgets/catalog');
+    expect(acme.serviceUser.name).toBe('acme-widgets-componentlibrary-service');
+    expect(acme.serviceUser.bundleSymbolicName).toBe('acme-widgets.core');
+    expect(acme.hero.badge).toBe('acme-widgets');
+    expect(acme.catalog.usageIndexName).toMatch(/^acm\.componentUsage-custom-1$/);
+
+    // Two different projects never share a brand-identifying default.
+    expect(acme.output.servletPackage).not.toBe(globex.output.servletPackage);
+    expect(acme.hero.badge).not.toBe(globex.hero.badge);
+  });
+
+  it('never hardcodes any specific customer/brand name anywhere in the extension source', () => {
+    const srcRoot = path.join(__dirname, '..', 'src');
+    const bannedTerms = ['pidilite', 'haisha'];
+    const offenders: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (/\.(ts|tsx|json)$/.test(entry.name)) {
+          const content = fs.readFileSync(full, 'utf-8').toLowerCase();
+          for (const term of bannedTerms) {
+            if (content.includes(term)) offenders.push(`${full} contains "${term}"`);
+          }
+        }
+      }
+    };
+    walk(srcRoot);
+
+    expect(offenders).toEqual([]);
+  });
 });

@@ -28,8 +28,8 @@ describe('SiteDomainService run-mode OSGi config generation', () => {
     fixture = createAemCloudFixture();
     const config = loadConfig(fixture.root);
     config.taxonomy.siteDomains = [
-      { category: 'campaign', prodDomain: 'https://example.com', stageDomain: '' },
-      { category: 'corporate', prodDomain: '', stageDomain: 'https://stage.corporate.example.com' },
+      { category: 'campaign', prodDomain: 'https://example.com', stageDomain: '', shortenPath: '/content/campaign' },
+      { category: 'corporate', prodDomain: '', stageDomain: 'https://stage.corporate.example.com', shortenPath: '' },
     ];
     saveConfig(fixture.root, config);
 
@@ -52,15 +52,16 @@ describe('SiteDomainService run-mode OSGi config generation', () => {
 
     const prodJson = JSON.parse(prod.content) as { siteDomains: string[] };
     expect(prodJson.siteDomains).toEqual([
-      'campaign=https://example.com',
-      // Blank-domain fallback format: "<category>=" with nothing after the "=".
-      'corporate=',
+      'campaign=https://example.com=/content/campaign',
+      // Blank-domain fallback format: "<category>==" with nothing after either "=".
+      'corporate==',
     ]);
 
     const stageJson = JSON.parse(stage.content) as { siteDomains: string[] };
     expect(stageJson.siteDomains).toEqual([
-      'campaign=',
-      'corporate=https://stage.corporate.example.com',
+      // shortenPath is a fixed per-site property, so it's written the same into stage too.
+      'campaign==/content/campaign',
+      'corporate=https://stage.corporate.example.com=',
     ]);
 
     // The Java class itself is only generated alongside the config, in the same package.

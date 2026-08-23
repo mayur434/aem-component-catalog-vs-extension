@@ -14,6 +14,7 @@ const sidebars = {
         'usage-manual/getting-started',
         'usage-manual/commands-reference',
         'usage-manual/configuration-and-governance',
+        'usage-manual/generated-artifacts',
         'usage-manual/generation-safety-and-ci',
         'usage-manual/troubleshooting',
       ],

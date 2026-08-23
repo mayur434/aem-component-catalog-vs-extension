@@ -1,8 +1,9 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config/loader';
-import { runPreflight } from '../src/core/preflight';
+import { checkGenerationPrerequisites, runPreflight } from '../src/core/preflight';
 import {
   applyRemediationActions,
   injectAttributes,
@@ -10,7 +11,13 @@ import {
   remediationsForRule,
 } from '../src/core/remediation';
 import { acquireLock, clearStaleLock, isLockStale, readLock } from '../src/utils/lock';
-import { createAemCloudFixture, write, type AemFixture } from './helpers/fixture';
+import {
+  createAemCloudFixture,
+  createAmsAlternateNamingFixture,
+  createAmsFixture,
+  write,
+  type AemFixture,
+} from './helpers/fixture';
 
 let fixture: AemFixture | undefined;
 afterEach(() => fixture?.cleanup());
@@ -47,6 +54,55 @@ describe('generation preflight', () => {
     const governance = report.checks.find((c) => c.id === 'governance-metadata');
     expect(governance?.status).toBe('warn');
     expect(governance?.remediationId).toBe('scaffold-governance-metadata');
+  });
+
+  it('passes an AEM AMS reactor the same way it passes an AEMaaCS one', () => {
+    fixture = createAmsFixture();
+    const report = runPreflight(fixture.root, { config: loadConfig(fixture.root), trusted: true });
+    expect(report.summary.passed).toBe(true);
+    expect(report.checks.find((c) => c.id === 'platform-detected')?.status).toBe('pass');
+    expect(report.checks.find((c) => c.id === 'platform-detected')?.title).toContain('AEM AMS');
+    expect(report.checks.find((c) => c.id === 'ui-config-present')?.status).toBe('pass');
+  });
+});
+
+describe('checkGenerationPrerequisites', () => {
+  it('accepts both AEMaaCS and AEM AMS reactors that have ui.config', () => {
+    const cloud = createAemCloudFixture();
+    const ams = createAmsFixture();
+    try {
+      expect(checkGenerationPrerequisites(cloud.root)).toMatchObject({ ok: true, platform: 'aemaacs', failures: [] });
+      expect(checkGenerationPrerequisites(ams.root)).toMatchObject({ ok: true, platform: 'ams', failures: [] });
+    } finally {
+      cloud.cleanup();
+      ams.cleanup();
+    }
+  });
+
+  it('fails closed when ui.config is missing, even on an otherwise-valid reactor', () => {
+    fixture = createAemCloudFixture();
+    fs.rmSync(path.join(fixture.root, 'ui.config'), { recursive: true, force: true });
+    const result = checkGenerationPrerequisites(fixture.root);
+    expect(result.ok).toBe(false);
+    expect(result.failures.some((message) => message.includes('ui.config'))).toBe(true);
+  });
+
+  it('fails closed when no supported AEM reactor is detected', () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'aem-none-test-'));
+    try {
+      const result = checkGenerationPrerequisites(empty);
+      expect(result.ok).toBe(false);
+      expect(result.platform).toBeNull();
+      expect(result.failures.some((message) => message.includes('No supported AEM reactor'))).toBe(true);
+    } finally {
+      fs.rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts an AEM AMS reactor using the alternate bundle/content module naming', () => {
+    fixture = createAmsAlternateNamingFixture();
+    const result = checkGenerationPrerequisites(fixture.root);
+    expect(result).toMatchObject({ ok: true, platform: 'ams', failures: [] });
   });
 });
 

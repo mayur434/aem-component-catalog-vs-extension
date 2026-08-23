@@ -27,7 +27,7 @@ export function planOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths)
     {
       absolutePath: path.join(
         directory,
-        `org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~${config.appId}.cfg.json`,
+        `org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~${osgiConfigSuffix(config)}.cfg.json`,
       ),
       content: mapper,
       kind: 'osgi',
@@ -35,12 +35,28 @@ export function planOsgiConfigs(config: ComponentLibraryConfig, paths: AemPaths)
     {
       absolutePath: path.join(
         directory,
-        `org.apache.sling.jcr.repoinit.RepositoryInitializer~${config.appId}.cfg.json`,
+        `org.apache.sling.jcr.repoinit.RepositoryInitializer~${osgiConfigSuffix(config)}.cfg.json`,
       ),
       content: repoinit,
       kind: 'osgi',
     },
   ];
+}
+
+/**
+ * Factory-config PID suffix for the catalog's own ServiceUserMapperImpl.amended and
+ * RepositoryInitializer files. Deliberately NOT the bare appId: the standard AEM Project
+ * Archetype already scaffolds its own site-wide `~<appId>` service-user-mapper and repoinit
+ * files for every new reactor. Reusing that exact suffix would make the catalog's generated
+ * file land on the exact same path as that pre-existing, unrelated file - which the
+ * generation planner then treats as a manually-modified conflict and, being conservative by
+ * design, refuses to overwrite it. On a fresh archetype-based project this silently leaves
+ * the catalog's RepoInit/service-user config never actually written, even though the plan
+ * reports no error. A dedicated suffix keeps our factory config in its own file, additive to
+ * (never colliding with) whatever the archetype or other features already contributed.
+ */
+export function osgiConfigSuffix(config: ComponentLibraryConfig): string {
+  return `${config.appId}-componentlibrary`;
 }
 
 /**
@@ -55,11 +71,14 @@ export function planSiteDomainOsgiConfigs(config: ComponentLibraryConfig, paths:
   if (categories.length === 0) return [];
 
   const byCategory = new Map(config.taxonomy.siteDomains.map((entry) => [entry.category, entry]));
+  // shortenPath is one value per site, not per run mode - a site's Dispatcher rewrite behaviour
+  // is a fixed property of its own rewrite.rules, which stage and prod share, so the same
+  // value is written into both generated config files.
   const entriesFor = (runMode: 'stage' | 'prod'): string[] =>
     categories.map((category) => {
       const entry = byCategory.get(category);
       const domain = (runMode === 'prod' ? entry?.prodDomain : entry?.stageDomain) ?? '';
-      return `${category}=${domain}`;
+      return `${category}=${domain}=${entry?.shortenPath ?? ''}`;
     });
 
   // PID equals the fully-qualified class name of the generated SiteDomainService, in the

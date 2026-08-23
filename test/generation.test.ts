@@ -3,7 +3,8 @@ import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config/loader';
 import { applyGenerationPlan, buildGenerationPlan, rollbackLastGeneration } from '../src/core/generation';
-import { createAemCloudFixture, type AemFixture } from './helpers/fixture';
+import { resolveAemPaths } from '../src/utils/aemPaths';
+import { createAemCloudFixture, createAmsAlternateNamingFixture, type AemFixture } from './helpers/fixture';
 
 let fixture: AemFixture | undefined;
 afterEach(() => fixture?.cleanup());
@@ -201,6 +202,57 @@ describe('transactional generation', () => {
     )!.content;
     expect(pageDef).toContain('sling:resourceSuperType="core/wcm/components/page/v3/page"');
     expect(pageDef).not.toContain('sample-site/components/page"');
+  });
+
+  it('never collides with the AEM Project Archetype\'s own default ~<appId> service-user/repoinit files', () => {
+    fixture = createAemCloudFixture();
+    const config = loadConfig(fixture.root);
+    const osgiConfigDir = resolveAemPaths(fixture.root).osgiConfigDir(config);
+
+    // Simulate the files `mvn archetype:generate` already scaffolds for every new AEMaaCS
+    // reactor, at the exact bare "~<appId>" path our own generator used to also target.
+    const archetypeMapper = path.join(
+      osgiConfigDir,
+      'org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~sample-site.cfg.json',
+    );
+    const archetypeRepoinit = path.join(
+      osgiConfigDir,
+      'org.apache.sling.jcr.repoinit.RepositoryInitializer~sample-site.cfg.json',
+    );
+    fs.mkdirSync(osgiConfigDir, { recursive: true });
+    fs.writeFileSync(archetypeMapper, JSON.stringify({ mappings: ['sample-site.core:sling-mapping=[sample-site-service]'] }));
+    fs.writeFileSync(archetypeRepoinit, JSON.stringify({ scripts: ['create service user sample-site-service'] }));
+
+    const plan = buildGenerationPlan(fixture.root, config);
+    const ours = plan.items.filter((item) => item.relativePath.includes('-componentlibrary.cfg.json'));
+    expect(ours).toHaveLength(2);
+    // Fresh, un-owned files at their own distinct path: always 'create', never 'conflict'.
+    expect(ours.every((item) => item.status === 'create')).toBe(true);
+
+    applyGenerationPlan(plan, { actor: 'test' });
+    expect(fs.existsSync(archetypeRepoinit)).toBe(true);
+    expect(fs.existsSync(archetypeMapper)).toBe(true);
+    // The pre-existing archetype files are left completely untouched.
+    expect(fs.readFileSync(archetypeRepoinit, 'utf-8')).toContain('create service user sample-site-service');
+    // Our own catalog RepoInit file exists alongside them, unaffected by the archetype files.
+    const ourRepoinit = path.join(
+      osgiConfigDir,
+      'org.apache.sling.jcr.repoinit.RepositoryInitializer~sample-site-componentlibrary.cfg.json',
+    );
+    expect(fs.existsSync(ourRepoinit)).toBe(true);
+  });
+
+  it('generates successfully on an AEM AMS reactor using the alternate bundle/content module naming', () => {
+    fixture = createAmsAlternateNamingFixture();
+    const config = loadConfig(fixture.root);
+    // Would previously throw "Required AEMaaCS module core/ui.apps not found" for a reactor
+    // that legitimately uses 'bundle'/'content' instead of 'core'/'ui.apps'.
+    const plan = buildGenerationPlan(fixture.root, config);
+    expect(plan.items.length).toBeGreaterThan(0);
+    applyGenerationPlan(plan, { actor: 'test' });
+    const servlet = plan.items.find((item) => item.relativePath.endsWith('.java') && item.relativePath.includes('bundle'));
+    expect(servlet).toBeDefined();
+    expect(fs.existsSync(path.join(fixture.root, servlet!.relativePath))).toBe(true);
   });
 
   it('generates dispatcher allow rules only when the catalog serves on publish', () => {

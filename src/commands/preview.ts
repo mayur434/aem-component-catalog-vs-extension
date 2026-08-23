@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { loadConfig } from '../config/loader';
 import { buildGenerationPlan, formatPlan } from '../core/generation';
-import { selectAemCloudProject } from './projectSelection';
+import { selectAemProject } from './projectSelection';
 
 export async function previewCommand(requestedRoot?: string): Promise<void> {
-  const project = await selectAemCloudProject(requestedRoot, 'Select the AEMaaCS project to preview');
+  const project = await selectAemProject(requestedRoot, 'Select the AEM project to preview');
   if (!project) return;
   try {
     const plan = buildGenerationPlan(project.root, loadConfig(project.root));

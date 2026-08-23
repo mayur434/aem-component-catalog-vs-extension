@@ -4,8 +4,8 @@ import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../src/config/loader';
 import { scanComponents } from '../src/scanner/componentScanner';
-import { parseAemCloudProject } from '../src/scanner/projectDetector';
-import { createAemCloudFixture, type AemFixture } from './helpers/fixture';
+import { parseAemCloudProject, parseAmsProject } from '../src/scanner/projectDetector';
+import { createAemCloudFixture, createAmsFixture, type AemFixture } from './helpers/fixture';
 
 let fixture: AemFixture | undefined;
 let legacyRoot: string | undefined;
@@ -30,6 +30,14 @@ describe('AEMaaCS discovery and component scanning', () => {
       '<project><artifactId>legacy</artifactId><packaging>pom</packaging><dependencies><dependency><artifactId>uber-jar</artifactId></dependency></dependencies><modules><module>core</module></modules></project>',
     );
     expect(parseAemCloudProject(legacyRoot)).toBeNull();
+  });
+
+  it('accepts an AEM AMS reactor and discovers the Java package', () => {
+    fixture = createAmsFixture();
+    const project = parseAmsProject(fixture.root);
+    expect(project?.platform).toBe('ams');
+    expect(project?.javaPackage).toBe('com.example.core.servlets');
+    expect(project?.modules).toContain('ui.config');
   });
 
   it('recursively scans enterprise metadata and calculates quality', () => {

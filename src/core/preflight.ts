@@ -12,11 +12,58 @@ import * as path from 'path';
 import { configExists, loadConfig, validateConfig } from '../config/loader';
 import type { ComponentLibraryConfig } from '../config/schema';
 import { scanComponents } from '../scanner/componentScanner';
-import { parseAemCloudProject } from '../scanner/projectDetector';
+import { parseAemProject, type AemPlatform } from '../scanner/projectDetector';
 import { buildGenerationPlan } from './generation';
 import { isLockStale, readLock } from '../utils/lock';
 
 export type PreflightStatus = 'pass' | 'warn' | 'fail';
+
+export interface GenerationPrerequisites {
+  ok: boolean;
+  platform: AemPlatform | null;
+  /** Human-readable reasons generation is blocked; empty when ok is true. */
+  failures: string[];
+}
+
+/**
+ * Fast, config-independent structural gate: confirms the project is a recognized AEM
+ * reactor (AEMaaCS or AEM AMS — both are supported identically) and that ui.config is
+ * present, since the service-user mapping and RepoInit configuration this tool generates
+ * are written there on either platform. Cheap enough to call before configuration even
+ * exists, so callers (VS Code commands, the Configure panel, the CLI) can block
+ * initialization/generation up front instead of failing deep inside a write.
+ */
+export function checkGenerationPrerequisites(projectRoot: string): GenerationPrerequisites {
+  const root = path.resolve(projectRoot);
+  const project = parseAemProject(root);
+  const failures: string[] = [];
+  if (!project) {
+    failures.push(
+      'No supported AEM reactor was detected at this location. A recognized AEM as a Cloud Service or AEM as a Managed Service (AMS) Maven reactor is required.',
+    );
+  }
+  if (!fs.existsSync(path.join(root, 'ui.config'))) {
+    failures.push(
+      'The ui.config module is missing. It is required on both AEMaaCS and AEM AMS projects to generate the service-user mapping and RepoInit (repository initializer) configuration the catalog depends on.',
+    );
+  }
+  // 'core'/'ui.apps' accept AMS's alternate 'bundle'/'content' naming (see isAmsReactor).
+  // Detection (above) can pass via hasCloudApi alone without guaranteeing every module
+  // resolveAemPaths needs, so check them explicitly here rather than letting generation
+  // crash later with a raw "module not found" error deep inside buildGenerationPlan.
+  if (!fs.existsSync(path.join(root, 'core')) && !fs.existsSync(path.join(root, 'bundle'))) {
+    failures.push('The core (or bundle) module is missing. It is required to host the generated catalog servlet.');
+  }
+  if (!fs.existsSync(path.join(root, 'ui.apps')) && !fs.existsSync(path.join(root, 'content'))) {
+    failures.push(
+      'The ui.apps (or content) module is missing. It is required to host the generated page component and clientlib.',
+    );
+  }
+  if (!fs.existsSync(path.join(root, 'all'))) {
+    failures.push('The all module is missing. It is required as the aggregator package for the generated content.');
+  }
+  return { ok: failures.length === 0, platform: project?.platform ?? null, failures };
+}
 
 export interface PreflightCheck {
   id: string;
@@ -55,16 +102,40 @@ export function runPreflight(projectRoot: string, options: PreflightOptions = {}
     );
   }
 
-  const project = parseAemCloudProject(root);
+  const project = parseAemProject(root);
   add(
     project
-      ? pass('aemaacs-project', `Detected AEMaaCS project “${project.artifactId}”`)
-      : fail('aemaacs-project', 'Not an AEM as a Cloud Service project', 'The root POM lacks recognized AEMaaCS markers or the standard Cloud module structure.'),
+      ? pass('platform-detected', `Detected ${platformLabel(project.platform)} project “${project.artifactId}”`)
+      : fail(
+          'platform-detected',
+          'No supported AEM reactor detected',
+          'The root POM lacks recognized AEM as a Cloud Service or AEM as a Managed Service (AMS) markers, or the standard module structure for either platform.',
+        ),
+  );
+  add(
+    fs.existsSync(path.join(root, 'ui.config'))
+      ? pass('ui-config-present', 'ui.config module is present')
+      : fail(
+          'ui-config-present',
+          'ui.config module is missing',
+          'The ui.config module is required on both AEMaaCS and AEM AMS to host the service-user mapping and RepoInit configuration the catalog depends on.',
+        ),
   );
 
-  const missingModules = ['core', 'ui.apps', 'ui.config', 'all'].filter(
-    (module) => !fs.existsSync(path.join(root, module)),
-  );
+  // 'core'/'ui.apps' accept AMS's alternate 'bundle'/'content' naming (see isAmsReactor in
+  // projectDetector.ts and resolveAemPaths in aemPaths.ts) - checking only the literal
+  // AEMaaCS names here would falsely report a genuinely alternate-named AMS reactor as
+  // missing modules it actually has under a different, equally-valid name.
+  const missingModules: string[] = [];
+  if (!fs.existsSync(path.join(root, 'core')) && !fs.existsSync(path.join(root, 'bundle'))) {
+    missingModules.push('core (or bundle)');
+  }
+  if (!fs.existsSync(path.join(root, 'ui.apps')) && !fs.existsSync(path.join(root, 'content'))) {
+    missingModules.push('ui.apps (or content)');
+  }
+  for (const module of ['ui.config', 'all']) {
+    if (!fs.existsSync(path.join(root, module))) missingModules.push(module);
+  }
   add(
     missingModules.length === 0
       ? pass('required-modules', 'Required Maven modules are present')
@@ -231,6 +302,10 @@ function warn(id: string, title: string, detail: string, remediationId?: string)
 
 function fail(id: string, title: string, detail: string, remediationId?: string): PreflightCheck {
   return { id, title, status: 'fail', detail, remediationId };
+}
+
+function platformLabel(platform: AemPlatform): string {
+  return platform === 'aemaacs' ? 'AEMaaCS' : 'AEM AMS';
 }
 
 function errorMessage(error: unknown): string {
