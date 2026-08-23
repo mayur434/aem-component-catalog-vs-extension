@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { loadConfig } from '../config/loader';
 import { scanComponents } from '../scanner/componentScanner';
-import { selectAemCloudProject } from './projectSelection';
+import { selectAemProject } from './projectSelection';
 
 export async function scanCommand(requestedRoot?: string): Promise<void> {
-  const project = await selectAemCloudProject(requestedRoot, 'Select the AEMaaCS project to scan');
+  const project = await selectAemProject(requestedRoot, 'Select the AEM project to scan');
   if (!project) return;
   try {
     const result = scanComponents(project.root, loadConfig(project.root));

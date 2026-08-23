@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { createSupportBundle } from '../core/supportBundle';
-import { selectAemCloudProject } from './projectSelection';
+import { selectAemProject } from './projectSelection';
 
 export async function supportBundleCommand(requestedRoot?: string): Promise<void> {
-  const project = await selectAemCloudProject(requestedRoot, 'Select the AEMaaCS project for diagnostics');
+  const project = await selectAemProject(requestedRoot, 'Select the AEM project for diagnostics');
   if (!project) return;
   const target = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.joinPath(vscode.Uri.file(project.root), 'aem-catalog-support.json'),

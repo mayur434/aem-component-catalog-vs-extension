@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The generated ServiceUserMapperImpl and RepositoryInitializer OSGi factory configs used the same `~<appId>` PID suffix the standard AEM Project Archetype already scaffolds by default for every new reactor. On a real archetype-based project this collided with that pre-existing file: the generation plan classified our version as an unowned `conflict` and silently skipped writing it, so RepoInit (and the service-user mapping) never actually appeared even though the run reported no error. Both configs now use a dedicated `~<appId>-componentlibrary` suffix, and the default `serviceUser.name` is now `<appId>-componentlibrary-service` (previously `<appId>-service`, which also collided with the archetype's own default service user).
+- AEM Cloud Doctor's RepoInit publish-only check used a fragile `file.includes('component')` heuristic to identify the catalog's own RepoInit file, which only worked by coincidence for appIds containing the word "component". It now matches the exact generated filename.
+- Generation, preflight, and Cloud Doctor's required-module check all hard-required the literal AEMaaCS module names `core` and `ui.apps`, even though AEM AMS reactors using the equally-valid alternate names `bundle` and `content` (see `isAmsReactor`) already pass platform detection. A real AMS reactor using those alternate names would pass detection and then crash generation with a raw "module not found" error. `resolveAemPaths`, `checkGenerationPrerequisites`, the preflight `required-modules` check, and Cloud Doctor's `inspectModules` now all accept either naming convention.
+
 ## 2.1.0 — 2026-08-08
 
 ### Fixed

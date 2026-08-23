@@ -3,7 +3,7 @@ import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runDoctor } from '../src/core/doctor';
 import { doctorReportToSarif } from '../src/core/sarif';
-import { createAemCloudFixture, type AemFixture, write } from './helpers/fixture';
+import { createAemCloudFixture, createAmsFixture, type AemFixture, write } from './helpers/fixture';
 
 let fixture: AemFixture | undefined;
 afterEach(() => fixture?.cleanup());
@@ -65,5 +65,55 @@ describe('AEM Cloud Doctor', () => {
     expect(report.findings).toContainEqual(
       expect.objectContaining({ ruleId: 'aemaacs.package-separation', severity: 'error' }),
     );
+  });
+
+  it('flags the catalog\'s own RepoInit file when publish-only, by exact name (not a "component" substring guess)', () => {
+    // appId deliberately does NOT contain the word "component" — regression guard for the
+    // old, fragile `file.includes('component')` heuristic that only worked by coincidence
+    // for appIds like "pidilite-component-library".
+    fixture = createAemCloudFixture();
+    const publishDir = path.join(
+      fixture.root,
+      'ui.config/src/main/content/jcr_root/apps/sample-site/osgiconfig/config.publish',
+    );
+    write(
+      fixture.root,
+      path.join(
+        path.relative(fixture.root, publishDir),
+        'org.apache.sling.jcr.repoinit.RepositoryInitializer~sample-site-componentlibrary.cfg.json',
+      ),
+      JSON.stringify({ scripts: ['create service user sample-site-componentlibrary-service'] }),
+    );
+    const report = runDoctor(fixture.root);
+    expect(report.findings).toContainEqual(
+      expect.objectContaining({ ruleId: 'catalog.author-only', severity: 'error' }),
+    );
+  });
+
+  it('does not false-positive on an unrelated publish-scoped RepoInit file that is not the catalog\'s own', () => {
+    fixture = createAemCloudFixture();
+    const publishDir = path.join(
+      fixture.root,
+      'ui.config/src/main/content/jcr_root/apps/sample-site/osgiconfig/config.publish',
+    );
+    write(
+      fixture.root,
+      path.join(
+        path.relative(fixture.root, publishDir),
+        'org.apache.sling.jcr.repoinit.RepositoryInitializer~sample-site.cfg.json',
+      ),
+      JSON.stringify({ scripts: ['create service user sample-site-service'] }),
+    );
+    const report = runDoctor(fixture.root);
+    expect(report.findings.some((finding) => finding.ruleId === 'catalog.author-only')).toBe(false);
+  });
+
+  it('passes an AEM AMS reactor the same way it passes an AEMaaCS one', () => {
+    fixture = createAmsFixture();
+    const report = runDoctor(fixture.root);
+    expect(report.project?.platform).toBe('ams');
+    expect(report.summary.errors).toBe(0);
+    expect(report.summary.passed).toBe(true);
+    expect(report.findings.some((finding) => finding.ruleId === 'aemaacs.project')).toBe(false);
   });
 });

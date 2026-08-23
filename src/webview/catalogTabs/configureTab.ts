@@ -13,6 +13,7 @@ import * as vscode from 'vscode';
 import type { TabRenderResult } from './types';
 import { projectId } from '../../utils/webviewHelpers';
 import { saveConfig } from '../../config/loader';
+import { checkGenerationPrerequisites } from '../../core/preflight';
 import { runGeneration } from '../../commands/generate';
 import { deployLocal } from '../../commands/deploy';
 import { discoverWorkspaceProjects } from '../../commands/projectSelection';
@@ -95,6 +96,16 @@ async function handleGenerate(
   const project = buildProjects().find((candidate) => candidate.id === message.projectId);
   if (!project) {
     panel.webview.postMessage({ tab: 'configure', type: 'result', ok: false, error: 'That project is no longer in the workspace.' });
+    return;
+  }
+  const prerequisites = checkGenerationPrerequisites(project.root);
+  if (!prerequisites.ok) {
+    const detail = prerequisites.failures.join(' ');
+    panel.webview.postMessage({ tab: 'configure', type: 'result', ok: false, error: detail });
+    vscode.window.showErrorMessage(
+      `Configuration and generation are disabled for this project: ${detail}`,
+      { modal: true },
+    );
     return;
   }
   try {

@@ -13,7 +13,7 @@ import {
 } from './core/generation';
 import { doctorReportToSarif } from './core/sarif';
 import { defaultPolicy } from './core/policy';
-import { formatPreflight, runPreflight } from './core/preflight';
+import { formatPreflight, runPreflight, checkGenerationPrerequisites } from './core/preflight';
 import {
   applyRemediationActions,
   availableRemediations,
@@ -23,7 +23,7 @@ import { clearStaleLock } from './utils/lock';
 import { createSupportBundle } from './core/supportBundle';
 import { getTemplateRegistry } from './core/templateRegistry';
 import { scanComponents } from './scanner/componentScanner';
-import { detectProject, parseAemCloudProject } from './scanner/projectDetector';
+import { detectProject, parseAemProject } from './scanner/projectDetector';
 
 interface Arguments {
   command: string;
@@ -94,8 +94,13 @@ function initialize(projectRoot: string, args: Arguments): number {
     throw new Error(`${configPath(projectRoot)} already exists. Pass --force to replace it.`);
   }
 
-  const project = parseAemCloudProject(projectRoot);
-  if (!project) throw new Error(`No AEM as a Cloud Service project found at ${projectRoot}`);
+  const prerequisites = checkGenerationPrerequisites(projectRoot);
+  if (!prerequisites.ok) {
+    throw new Error(`Cannot initialize: ${prerequisites.failures.join(' ')}`);
+  }
+
+  const project = parseAemProject(projectRoot);
+  if (!project) throw new Error(`No supported AEM project found at ${projectRoot}`);
   const config = getDefaults(project.artifactId);
   config.output.servletPackage = project.javaPackage;
   config.hero.badge = project.artifactId;
@@ -107,7 +112,7 @@ function initialize(projectRoot: string, args: Arguments): number {
     writeAtomic(policyFile, `${JSON.stringify(defaultPolicy(), null, 2)}\n`, 0o644);
   }
   writeOutput(
-    `Initialized AEMaaCS catalog configuration at ${configPath(projectRoot)} and policy at ${policyFile}`,
+    `Initialized ${project.platform === 'aemaacs' ? 'AEMaaCS' : 'AEM AMS'} catalog configuration at ${configPath(projectRoot)} and policy at ${policyFile}`,
     args.output,
   );
   return 0;
@@ -334,9 +339,9 @@ function parseArguments(argv: string[]): Arguments {
 
 function resolveProjectRoot(requested?: string): string {
   const candidate = path.resolve(requested ?? process.cwd());
-  const direct = parseAemCloudProject(candidate);
+  const direct = parseAemProject(candidate);
   const project = direct ?? detectProject(candidate);
-  if (!project) throw new Error(`No AEM as a Cloud Service project found at or below ${candidate}`);
+  if (!project) throw new Error(`No supported AEM project (AEM as a Cloud Service or AEM AMS) found at or below ${candidate}`);
   return project.root;
 }
 

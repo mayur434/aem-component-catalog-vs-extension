@@ -10,13 +10,13 @@ Before this tool, each brand reactor in a multi-brand AEM program carried its ow
 
 ## What version 2.0 delivers
 
-The `2.0.0` release (2026-07-22) marks a deliberate scope narrowing and hardening pass: legacy AEM 6.5 and Adobe Managed Services **generation** support was removed outright, in favor of doing the AEMaaCS case completely and safely. In its place, the tool now ships:
+The `2.0.0` release (2026-07-22) marked a deliberate scope narrowing and hardening pass: it temporarily dropped Adobe Managed Services (AMS) **generation** support in favor of doing the AEMaaCS case completely and safely first. That gap has since been closed: AMS reactors (including ones using the alternate `bundle`/`content` module naming) now go through the exact same detection, preflight, remediation, and transactional generation pipeline as AEMaaCS — see [Getting Started](./usage-manual/getting-started) for the current platform-support scope. What 2.0 established, and what still holds today:
 
-- A **governed, generated catalog micro-site** per reactor — deployed as real AEMaaCS artifacts (`core` servlet, `ui.apps` component + clientlib, `ui.config` RepoInit/service-user), not a static export that drifts from reality.
+- A **governed, generated catalog micro-site** per reactor — deployed as real Maven module artifacts (`core`/`bundle` servlet, `ui.apps`/`content` component + clientlib, `ui.config` RepoInit/service-user), not a static export that drifts from reality.
 - A **shared, deterministic engine** behind both the VS Code UI and the CI-usable CLI, so "it works when I run it" and "it works in the pipeline" are the same claim.
 - **Explainable governance**, end to end: a weighted quality score, an organization policy with per-rule severity, SARIF output for pull-request code scanning, and a Cloud Doctor check that covers project structure, package boundaries, RepoInit shape, and documentation completeness.
 - A **transactional, reversible generation model** — plan, classify, write atomically, roll back on failure or on demand — so adopting the tool never risks a brand's hand-authored customization.
-- A **cross-brand duplicate-detection audit** (Excel output, covering AEMaaCS and legacy AMS alike) that answers a question the per-reactor catalog view structurally can't: where are brands quietly duplicating the same component?
+- A **cross-brand duplicate-detection audit** (Excel output, covering AEMaaCS and AMS alike) that answers a question the per-reactor catalog view structurally can't: where are brands quietly duplicating the same component?
 - A **security and privacy posture** — no telemetry, an author-only runtime, a hardened webview, redacted diagnostics — built to pass an enterprise security review without special-casing.
 
 ## Where this is heading in practice

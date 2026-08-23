@@ -4,7 +4,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { configExists, loadConfig, validateConfig } from '../config/loader';
 import type { ComponentLibraryConfig } from '../config/schema';
 import { scanComponents, type ScanResult, type ScannedComponent } from '../scanner/componentScanner';
-import { parseAemCloudProject, type ProjectInfo } from '../scanner/projectDetector';
+import { parseAemProject, type ProjectInfo } from '../scanner/projectDetector';
 import { buildGenerationPlan } from './generation';
 import {
   defaultPolicy,
@@ -66,22 +66,21 @@ export function runDoctor(projectRoot: string, options: DoctorOptions = {}): Doc
   }
 
   const add = createFindingAdder(policy, findings);
-  const project = parseAemCloudProject(root);
+  const project = parseAemProject(root);
   if (!project) {
     add(
       'aemaacs.project',
       'error',
-      'Not an AEM as a Cloud Service reactor',
-      'The root POM does not contain recognized AEMaaCS SDK/analyser markers or the standard Cloud module structure.',
+      'No supported AEM reactor detected',
+      'The root POM does not contain recognized markers for AEM as a Cloud Service or AEM as a Managed Service (AMS), or the standard module structure for either platform.',
       'pom.xml',
-      'Use the current AEM Project Archetype or add aem-sdk-api and the Cloud Manager analyser configuration.',
+      'Use the current AEM Cloud or AMS project archetype, or add the appropriate SDK/quickstart dependency markers.',
     );
   }
 
   inspectModules(root, project, add);
   inspectPackageSeparation(root, add);
   inspectAllEmbeds(root, add);
-  inspectRepoInit(root, add);
 
   let config: ComponentLibraryConfig | null = options.config ?? null;
   if (!config) {
@@ -109,6 +108,8 @@ export function runDoctor(projectRoot: string, options: DoctorOptions = {}): Doc
       }
     }
   }
+
+  inspectRepoInit(root, config?.appId ?? null, add);
 
   let scan: ScanResult | null = null;
   if (config) {
@@ -175,13 +176,19 @@ export function formatDoctorReport(report: DoctorReport, includeInformation = tr
 
 function inspectModules(root: string, project: ProjectInfo | null, add: FindingAdder): void {
   const modules = project?.modules ?? readModules(path.join(root, 'pom.xml'));
+  // 'core'/'ui.apps' accept AMS's alternate 'bundle'/'content' naming (see isAmsReactor in
+  // projectDetector.ts) - a literal-name-only check here would false-positive "missing
+  // module" for a genuinely alternate-named AMS reactor that already passed detection.
+  const alternates: Record<string, string[]> = { core: ['core', 'bundle'], 'ui.apps': ['ui.apps', 'content'] };
   for (const required of ['core', 'ui.apps', 'ui.config', 'all']) {
-    if (!modules.includes(required) || !fs.existsSync(path.join(root, required))) {
+    const names = alternates[required] ?? [required];
+    const present = names.some((name) => modules.includes(name) && fs.existsSync(path.join(root, name)));
+    if (!present) {
       add(
         'aemaacs.modules',
         'error',
         `Required module is missing: ${required}`,
-        `The AEMaaCS catalog requires the ${required} Maven module and directory.`,
+        `The catalog requires the ${names.join(' or ')} Maven module and directory.`,
         'pom.xml',
       );
     }
@@ -294,9 +301,17 @@ function inspectAllEmbeds(root: string, add: FindingAdder): void {
   }
 }
 
-function inspectRepoInit(root: string, add: FindingAdder): void {
+function inspectRepoInit(root: string, appId: string | null, add: FindingAdder): void {
   const directory = path.join(root, 'ui.config');
   if (!fs.existsSync(directory)) return;
+  // The catalog's own file uses the "~<appId>-componentlibrary" suffix (see
+  // osgiConfigSuffix in osgiConfigGenerator.ts) so it never collides with the archetype's
+  // own bare "~<appId>" RepoInit file. Match on that exact suffix, not a fragile substring
+  // like "component" (which would silently miss any appId that doesn't itself contain that
+  // word, and could false-positive on unrelated third-party RepoInit files that do).
+  const catalogFileName = appId
+    ? `org.apache.sling.jcr.repoinit.RepositoryInitializer~${appId}-componentlibrary.cfg.json`
+    : null;
   for (const file of findFiles(
     directory,
     (fileName) => fileName.includes('RepositoryInitializer') && fileName.endsWith('.cfg.json'),
@@ -312,7 +327,7 @@ function inspectRepoInit(root: string, add: FindingAdder): void {
       // config.publish only, which would exclude author entirely and break the catalog
       // while never actually exposing anything on publish (the servlet's own runtime
       // check keeps the UI author-only regardless of where this config applies).
-      if (file.includes('component') && file.split(path.sep).includes('config.publish')) {
+      if (catalogFileName && path.basename(file) === catalogFileName && file.split(path.sep).includes('config.publish')) {
         add(
           'catalog.author-only',
           'error',

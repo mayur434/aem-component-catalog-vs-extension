@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { configExists, loadConfig, saveConfig } from '../config/loader';
 import { getDefaults } from '../config/defaults';
 import { applyGenerationPlan, buildGenerationPlan, type ApplyResult } from '../core/generation';
-import { requireTrustedWorkspace, selectAemCloudProject } from './projectSelection';
+import { checkGenerationPrerequisites } from '../core/preflight';
+import { requireTrustedWorkspace, selectAemProject } from './projectSelection';
 
 export async function generateCommand(requestedRoot?: string): Promise<void> {
   await executeGeneration('Generate', requestedRoot);
@@ -11,20 +12,30 @@ export async function generateCommand(requestedRoot?: string): Promise<void> {
 /**
  * Generate (or update) the component-catalog micro-site.
  *
- * This is the ONLY thing this command does: build the plan and write it. There is
- * no Cloud Doctor gate, no preflight gate, and no dependency on anything else — a
- * missing dispatcher, low component quality, or absent metadata never block it.
+ * Beyond the platform/ui.config structural gate below, this does nothing else: build
+ * the plan and write it. There is no Cloud Doctor gate, no full preflight gate, and no
+ * dependency on anything else — a missing dispatcher, low component quality, or absent
+ * metadata never block it.
  */
 export async function executeGeneration(
   action: 'Generate' | 'Update',
   requestedRoot?: string,
 ): Promise<void> {
   if (!requireTrustedWorkspace(`${action} component catalog`)) return;
-  const project = await selectAemCloudProject(
+  const project = await selectAemProject(
     requestedRoot,
-    `Select the AEMaaCS project to ${action.toLowerCase()}`,
+    `Select the AEM project to ${action.toLowerCase()}`,
   );
   if (!project) return;
+
+  const prerequisites = checkGenerationPrerequisites(project.root);
+  if (!prerequisites.ok) {
+    vscode.window.showErrorMessage(
+      `${action} blocked — this project does not meet the catalog's structural requirements: ${prerequisites.failures.join(' ')}`,
+      { modal: true },
+    );
+    return;
+  }
 
   try {
     if (!configExists(project.root)) {

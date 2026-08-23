@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { formatDoctorReport, runDoctor } from '../core/doctor';
 import { doctorReportToSarif } from '../core/sarif';
-import { selectAemCloudProject } from './projectSelection';
+import { selectAemProject } from './projectSelection';
 
 export async function doctorCommand(requestedRoot?: string): Promise<void> {
-  const project = await selectAemCloudProject(requestedRoot, 'Select the AEMaaCS project to validate');
+  const project = await selectAemProject(requestedRoot, 'Select the AEM project to validate');
   if (!project) return;
   const policyFile = vscode.workspace
     .getConfiguration('aemComponentLibrary', vscode.Uri.file(project.root))

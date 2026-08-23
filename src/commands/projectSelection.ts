@@ -2,13 +2,6 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { detectAllProjects, type ProjectInfo, type AemPlatform } from '../scanner/projectDetector';
 
-export async function selectAemCloudProject(
-  requestedRoot?: string,
-  placeHolder = 'Select the AEM as a Cloud Service project',
-): Promise<ProjectInfo | undefined> {
-  return selectAemProject(requestedRoot, placeHolder, 'aemaacs');
-}
-
 export async function selectAemProject(
   requestedRoot?: string,
   placeHolder = 'Select the AEM project',
